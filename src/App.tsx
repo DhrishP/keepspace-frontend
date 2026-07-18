@@ -47,8 +47,15 @@ export default function App() {
   // Sidebar state for mobile layout
   const [sidebarOpen, setSidebarOpen] = useState(false);
   
-  // Theme state
-  const [theme, setTheme] = useState<'dark' | 'light'>('dark');
+  // Theme state persisted in localStorage
+  const [theme, setTheme] = useState<'dark' | 'light'>(() => {
+    const saved = localStorage.getItem('keepspace_theme');
+    return (saved === 'light' || saved === 'dark') ? saved : 'dark';
+  });
+
+  useEffect(() => {
+    document.documentElement.setAttribute('data-theme', theme);
+  }, [theme]);
   
   // Tab and Folder navigation state
   const [currentTab, setCurrentTab] = useState<string>('all'); // all, favorites, pdf, image, video, link
@@ -94,6 +101,7 @@ export default function App() {
   const toggleTheme = () => {
     const nextTheme = theme === 'dark' ? 'light' : 'dark';
     setTheme(nextTheme);
+    localStorage.setItem('keepspace_theme', nextTheme);
     document.documentElement.setAttribute('data-theme', nextTheme);
   };
 
