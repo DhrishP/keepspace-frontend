@@ -417,6 +417,32 @@ export default function App() {
     }
   };
 
+  // Rename file or folder handler
+  const handleRename = async (id: string, isFolder: boolean, currentName: string) => {
+    const newName = window.prompt(`Rename ${isFolder ? 'folder' : 'file'}:`, currentName);
+    if (!newName || !newName.trim() || newName.trim() === currentName) return;
+
+    try {
+      const url = isFolder ? `${API_BASE_URL}/api/folders/${id}` : `${API_BASE_URL}/api/documents/${id}`;
+      const res = await fetch(url, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: newName.trim() })
+      });
+
+      if (res.ok) {
+        addToast(`${isFolder ? 'Folder' : 'File'} renamed successfully`);
+        fetchData();
+        fetchSidebarFolders();
+      } else {
+        const err = await res.json();
+        addToast(err.error || "Failed to rename", "error");
+      }
+    } catch (e) {
+      addToast("Network error renaming item", "error");
+    }
+  };
+
   // Toggle favorite status
   const handleToggleFavorite = async (id: string, currentFav: number) => {
     const nextFav = currentFav === 1 ? 0 : 1;
@@ -591,6 +617,7 @@ export default function App() {
           onPreviewDocument={handleOpenPreview}
           onToggleFavorite={handleToggleFavorite}
           onDelete={handleDelete}
+          onRename={handleRename}
           onOpenUpload={handleOpenUpload}
           cardSize={cardSize}
           setCardSize={handleSetCardSize}

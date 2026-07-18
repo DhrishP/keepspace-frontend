@@ -17,6 +17,7 @@ interface FolderViewProps {
   setCardSize: (size: 'sm' | 'md' | 'lg') => void;
   onMoveItem?: (itemId: string, isFolderItem: boolean, targetFolderId: string | null) => void;
   onShare?: (doc: any) => void;
+  onRename?: (id: string, isFolder: boolean, currentName: string) => void;
 }
 
 export const FolderView: React.FC<FolderViewProps> = ({
@@ -34,6 +35,7 @@ export const FolderView: React.FC<FolderViewProps> = ({
   setCardSize,
   onMoveItem,
   onShare,
+  onRename,
 }) => {
   const [isDragOver, setIsDragOver] = React.useState(false);
 
@@ -169,6 +171,7 @@ export const FolderView: React.FC<FolderViewProps> = ({
                     onNavigate={onNavigateFolder}
                     onPreview={() => {}}
                     onDelete={onDelete}
+                    onRename={onRename}
                     onMoveItem={onMoveItem}
                   />
                 ))}
@@ -190,6 +193,7 @@ export const FolderView: React.FC<FolderViewProps> = ({
                     onPreview={onPreviewDocument}
                     onToggleFavorite={onToggleFavorite}
                     onDelete={onDelete}
+                    onRename={onRename}
                     onMoveItem={onMoveItem}
                     onShare={onShare}
                   />

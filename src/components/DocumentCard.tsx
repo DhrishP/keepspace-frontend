@@ -12,7 +12,8 @@ import {
   Trash2, 
   Eye,
   ExternalLink,
-  Share2
+  Share2,
+  Edit3
 } from 'lucide-react';
 
 interface DocumentCardProps {
@@ -22,6 +23,7 @@ interface DocumentCardProps {
   onPreview: (doc: any) => void;
   onToggleFavorite?: (id: string, currentFav: number) => void;
   onDelete: (id: string, isFolder: boolean) => void;
+  onRename?: (id: string, isFolder: boolean, currentName: string) => void;
   onMoveItem?: (itemId: string, isFolderItem: boolean, targetFolderId: string | null) => void;
   onShare?: (doc: any) => void;
 }
@@ -33,6 +35,7 @@ export const DocumentCard: React.FC<DocumentCardProps> = ({
   onPreview,
   onToggleFavorite,
   onDelete,
+  onRename,
   onMoveItem,
   onShare,
 }) => {
@@ -119,16 +122,30 @@ export const DocumentCard: React.FC<DocumentCardProps> = ({
           <div className="card-icon-box icon-folder">
             <Folder size={24} />
           </div>
-          <button 
-            className="card-action-btn" 
-            onClick={(e) => {
-              e.stopPropagation();
-              onDelete(item.id, true);
-            }}
-            title="Delete Directory"
-          >
-            <Trash2 size={16} />
-          </button>
+          <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
+            {onRename && (
+              <button 
+                className="card-action-btn" 
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onRename(item.id, true, item.name);
+                }}
+                title="Rename Directory"
+              >
+                <Edit3 size={16} />
+              </button>
+            )}
+            <button 
+              className="card-action-btn" 
+              onClick={(e) => {
+                e.stopPropagation();
+                onDelete(item.id, true);
+              }}
+              title="Delete Directory"
+            >
+              <Trash2 size={16} />
+            </button>
+          </div>
         </div>
         <div className="card-info">
           <span className="card-name" title={item.name}>{item.name}</span>
@@ -221,6 +238,19 @@ export const DocumentCard: React.FC<DocumentCardProps> = ({
               title="Share Document"
             >
               <Share2 size={16} />
+            </button>
+          )}
+
+          {onRename && (
+            <button 
+              className="card-action-btn"
+              onClick={(e) => {
+                e.stopPropagation();
+                onRename(item.id, false, item.name);
+              }}
+              title="Rename File"
+            >
+              <Edit3 size={16} />
             </button>
           )}
 
