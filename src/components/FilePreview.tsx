@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { X, ExternalLink, Download, Edit2, Check } from 'lucide-react';
+import { X, ExternalLink, Download, Edit2, Check, Copy } from 'lucide-react';
 import { API_BASE_URL } from '../config';
 
 interface FilePreviewProps {
@@ -16,12 +16,21 @@ export const FilePreview: React.FC<FilePreviewProps> = ({
   const [desc, setDesc] = useState(doc.description || '');
   const [isEditing, setIsEditing] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+  const [isCopied, setIsCopied] = useState(false);
 
   const handleSaveDescription = async () => {
     setIsSaving(true);
     await onUpdateDescription(doc.id, desc);
     setIsSaving(false);
     setIsEditing(false);
+  };
+
+  const handleCopyNotes = () => {
+    if (doc.description) {
+      navigator.clipboard.writeText(doc.description);
+      setIsCopied(true);
+      setTimeout(() => setIsCopied(false), 2000);
+    }
   };
 
   const getMediaUrl = () => {
@@ -136,25 +145,37 @@ export const FilePreview: React.FC<FilePreviewProps> = ({
             <span style={{ fontSize: '13px', fontWeight: 600, color: 'var(--text-secondary)' }}>
               Notes & Description
             </span>
-            {isEditing ? (
-              <button 
-                className="btn btn-primary" 
-                style={{ padding: '6px 12px', fontSize: '12px', gap: '4px' }}
-                onClick={handleSaveDescription}
-                disabled={isSaving}
-              >
-                <Check size={14} />
-                Save
-              </button>
-            ) : (
-              <button 
-                className="card-action-btn" 
-                onClick={() => setIsEditing(true)}
-                title="Edit Notes"
-              >
-                <Edit2 size={14} />
-              </button>
-            )}
+            <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
+              {doc.description && !isEditing && (
+                <button 
+                  className="card-action-btn" 
+                  onClick={handleCopyNotes}
+                  title={isCopied ? "Copied!" : "Copy Notes"}
+                  style={{ color: isCopied ? 'var(--success)' : undefined }}
+                >
+                  {isCopied ? <Check size={14} /> : <Copy size={14} />}
+                </button>
+              )}
+              {isEditing ? (
+                <button 
+                  className="btn btn-primary" 
+                  style={{ padding: '6px 12px', fontSize: '12px', gap: '4px' }}
+                  onClick={handleSaveDescription}
+                  disabled={isSaving}
+                >
+                  <Check size={14} />
+                  Save
+                </button>
+              ) : (
+                <button 
+                  className="card-action-btn" 
+                  onClick={() => setIsEditing(true)}
+                  title="Edit Notes"
+                >
+                  <Edit2 size={14} />
+                </button>
+              )}
+            </div>
           </div>
 
           {isEditing ? (
