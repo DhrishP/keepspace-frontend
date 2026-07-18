@@ -61,6 +61,67 @@ export default function App() {
   const [currentTab, setCurrentTab] = useState<string>('all'); // all, favorites, pdf, image, video, link
   const [currentFolderId, setCurrentFolderId] = useState<string | null>(null);
   
+  // Navigation helpers with History pushState for PWA swipe-back support
+  const handleNavigateFolder = (folderId: string | null) => {
+    const targetHash = folderId ? `#folder=${folderId}` : '#';
+    if (window.location.hash !== targetHash) {
+      window.history.pushState({ folderId, tab: 'all' }, '', targetHash || window.location.pathname);
+    }
+    setCurrentFolderId(folderId);
+    setCurrentTab('all');
+  };
+
+  const handleSelectTab = (tab: string) => {
+    const targetHash = tab !== 'all' ? `#tab=${tab}` : '#';
+    if (window.location.hash !== targetHash) {
+      window.history.pushState({ folderId: null, tab }, '', targetHash || window.location.pathname);
+    }
+    setCurrentFolderId(null);
+    setCurrentTab(tab);
+  };
+
+  const handleOpenPreview = (doc: any) => {
+    setPreviewDoc(doc);
+    window.history.pushState({ modal: 'preview' }, '');
+  };
+
+  const handleOpenShare = (doc: any) => {
+    setShareDoc(doc);
+    window.history.pushState({ modal: 'share' }, '');
+  };
+
+  // Sync state from URL hash & handle browser Back/Forward / PWA Swipe Back
+  useEffect(() => {
+    const syncFromUrl = () => {
+      const hash = window.location.hash.replace(/^#/, '');
+      const params = new URLSearchParams(hash);
+      const folderParam = params.get('folder');
+      const tabParam = params.get('tab');
+
+      // Close active modals on back navigation
+      setPreviewDoc(null);
+      setShareDoc(null);
+      setActiveUploadTab(null);
+
+      if (folderParam) {
+        setCurrentFolderId(folderParam);
+        setCurrentTab('all');
+      } else if (tabParam) {
+        setCurrentFolderId(null);
+        setCurrentTab(tabParam);
+      } else {
+        setCurrentFolderId(null);
+        setCurrentTab('all');
+      }
+    };
+
+    // Sync initial load URL hash
+    syncFromUrl();
+
+    window.addEventListener('popstate', syncFromUrl);
+    return () => window.removeEventListener('popstate', syncFromUrl);
+  }, []);
+  
   // Search query
   const [searchQuery, setSearchQuery] = useState<string>('');
   
@@ -465,10 +526,10 @@ export default function App() {
         sidebarOpen={sidebarOpen}
         setSidebarOpen={setSidebarOpen}
         currentTab={currentTab}
-        setCurrentTab={setCurrentTab}
+        setCurrentTab={handleSelectTab}
         folders={sidebarFolders} // Always display top-level root folders
         currentFolderId={currentFolderId}
-        setCurrentFolderId={setCurrentFolderId}
+        setCurrentFolderId={handleNavigateFolder}
         onOpenUpload={handleOpenUpload}
         canInstall={canInstall}
         triggerInstall={triggerInstall}
@@ -516,7 +577,7 @@ export default function App() {
         {/* Path Navigation breadcrumbs */}
         <Breadcrumbs 
           breadcrumbs={breadcrumbs}
-          setCurrentFolderId={setCurrentFolderId}
+          setCurrentFolderId={handleNavigateFolder}
         />
 
         {/* Content Viewer Grid */}
@@ -526,15 +587,15 @@ export default function App() {
           subfolders={folders}
           documents={documents}
           searchQuery={searchQuery}
-          onNavigateFolder={setCurrentFolderId}
-          onPreviewDocument={setPreviewDoc}
+          onNavigateFolder={handleNavigateFolder}
+          onPreviewDocument={handleOpenPreview}
           onToggleFavorite={handleToggleFavorite}
           onDelete={handleDelete}
           onOpenUpload={handleOpenUpload}
           cardSize={cardSize}
           setCardSize={handleSetCardSize}
           onMoveItem={handleMoveItem}
-          onShare={setShareDoc}
+          onShare={handleOpenShare}
         />
       </main>
 
