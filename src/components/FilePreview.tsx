@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { X, ExternalLink, Download, Edit2, Check, Copy } from 'lucide-react';
 import { API_BASE_URL } from '../config';
 
@@ -17,6 +17,38 @@ export const FilePreview: React.FC<FilePreviewProps> = ({
   const [isEditing, setIsEditing] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [isCopied, setIsCopied] = useState(false);
+  const [textContent, setTextContent] = useState<string | null>(null);
+  const [isLoadingText, setIsLoadingText] = useState(false);
+
+  const isTextOrMd = 
+    doc.mime_type?.startsWith('text/') || 
+    doc.name.endsWith('.txt') || 
+    doc.name.endsWith('.md') ||
+    doc.name.endsWith('.json') ||
+    doc.name.endsWith('.csv') ||
+    doc.name.endsWith('.xml') ||
+    doc.name.endsWith('.js') ||
+    doc.name.endsWith('.ts');
+
+  useEffect(() => {
+    if (isTextOrMd) {
+      setIsLoadingText(true);
+      fetch(getMediaUrl())
+        .then(res => {
+          if (!res.ok) throw new Error("Failed to load file preview");
+          return res.text();
+        })
+        .then(text => {
+          setTextContent(text);
+          setIsLoadingText(false);
+        })
+        .catch(err => {
+          console.error(err);
+          setTextContent("Error loading preview content. Please download the file to view.");
+          setIsLoadingText(false);
+        });
+    }
+  }, [doc.id]);
 
   const handleSaveDescription = async () => {
     setIsSaving(true);
@@ -40,6 +72,34 @@ export const FilePreview: React.FC<FilePreviewProps> = ({
 
   // Render media viewer depending on document type
   const renderViewer = () => {
+    if (isTextOrMd) {
+      if (isLoadingText) {
+        return (
+          <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '200px', color: 'var(--text-muted)' }}>
+            Loading text preview...
+          </div>
+        );
+      }
+      return (
+        <div style={{ 
+          background: 'var(--bg-tertiary)', 
+          padding: '16px', 
+          borderRadius: 'var(--border-radius-md)', 
+          maxHeight: '400px', 
+          overflowY: 'auto', 
+          fontFamily: doc.name.endsWith('.md') ? 'var(--font-sans)' : 'var(--font-mono)',
+          fontSize: '14px',
+          lineHeight: '1.6',
+          whiteSpace: 'pre-wrap',
+          textAlign: 'left',
+          color: 'var(--text-primary)',
+          border: '1px solid var(--border-color)'
+        }}>
+          {textContent || 'Empty document'}
+        </div>
+      );
+    }
+
     switch (doc.type) {
       case 'image':
         return (
