@@ -1,4 +1,4 @@
-const CACHE_NAME = 'keepspace-v3';
+const CACHE_NAME = 'keepspace-v4';
 const ASSETS_TO_CACHE = [
   '/',
   '/index.html',
@@ -43,31 +43,61 @@ self.addEventListener('fetch', (event) => {
     event.respondWith((async () => {
       try {
         const formData = await event.request.formData();
-        const files = formData.getAll('files');
-        const title = formData.get('title') || '';
-        const text = formData.get('text') || '';
-        const sharedUrl = formData.get('url') || '';
+        
+        // Universally collect all files across all form keys
+        const incomingFiles = [];
+        for (const [key, val] of formData.entries()) {
+          if (val && typeof val === 'object' && (val instanceof File || val instanceof Blob || typeof val.arrayBuffer === 'function' || val.size > 0)) {
+            incomingFiles.push(val);
+          }
+        }
+
+        // Fallback check for common field names if entries iteration missed anything
+        if (incomingFiles.length === 0) {
+          const possibleKeys = ['files', 'media', 'file', 'image', 'images', 'photo', 'photos', 'document', 'documents'];
+          for (const k of possibleKeys) {
+            const vals = formData.getAll(k);
+            for (const val of vals) {
+              if (val && typeof val === 'object') {
+                incomingFiles.push(val);
+              }
+            }
+          }
+        }
+
+        const title = formData.get('title') || formData.get('name') || '';
+        const text = formData.get('text') || formData.get('description') || '';
+        const sharedUrl = formData.get('url') || formData.get('link') || '';
 
         const cache = await caches.open('keepspace-shared-payload');
+        // Clear any previous stale payloads
+        const existingKeys = await cache.keys();
+        for (const req of existingKeys) {
+          await cache.delete(req);
+        }
 
-        if (files && files.length > 0) {
-          for (let i = 0; i < files.length; i++) {
-            const file = files[i];
+        if (incomingFiles.length > 0) {
+          for (let i = 0; i < incomingFiles.length; i++) {
+            const file = incomingFiles[i];
+            const ext = (file.type && file.type.includes('png')) ? '.png' : (file.type && file.type.includes('pdf')) ? '.pdf' : '.jpg';
+            const fileName = file.name || `shared_photo_${i + 1}_${Date.now()}${ext}`;
             const response = new Response(file, {
               headers: {
-                'content-type': file.type || 'application/octet-stream',
-                'x-filename': encodeURIComponent(file.name || `shared_photo_${Date.now()}.jpg`)
+                'content-type': file.type || 'image/jpeg',
+                'x-filename': encodeURIComponent(fileName)
               }
             });
             await cache.put(`/shared-file-${i}`, response);
           }
           await cache.put('/shared-meta', new Response(JSON.stringify({
-            count: files.length,
+            count: incomingFiles.length,
             title,
             text,
             sharedUrl,
             timestamp: Date.now()
-          })));
+          }), {
+            headers: { 'content-type': 'application/json' }
+          }));
         } else if (text || sharedUrl) {
           await cache.put('/shared-meta', new Response(JSON.stringify({
             count: 0,
@@ -75,11 +105,19 @@ self.addEventListener('fetch', (event) => {
             text,
             sharedUrl,
             timestamp: Date.now()
-          })));
+          }), {
+            headers: { 'content-type': 'application/json' }
+          }));
         }
 
-        // Redirect user to the app root with ?shared=1 query param
-        return Response.redirect('/?shared=1', 303);
+        // Broadcast to all open window clients
+        const clients = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
+        for (const client of clients) {
+          client.postMessage({ type: 'KEEP_SPACE_SHARED_FILES', count: incomingFiles.length });
+        }
+
+        // Redirect user to the app root with a unique timestamp query param
+        return Response.redirect(`/?shared=${Date.now()}`, 303);
       } catch (err) {
         console.error('[SW] Share target processing error:', err);
         return Response.redirect('/', 303);
