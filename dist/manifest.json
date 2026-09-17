@@ -52,7 +52,22 @@
       "files": [
         {
           "name": "files",
-          "accept": ["image/*", "video/*", "application/pdf"]
+          "accept": [
+            "image/*",
+            "image/jpeg",
+            "image/png",
+            "image/webp",
+            "image/gif",
+            ".jpg",
+            ".jpeg",
+            ".png",
+            ".webp",
+            "video/*",
+            "video/mp4",
+            ".mp4",
+            "application/pdf",
+            ".pdf"
+          ]
         }
       ]
     }
