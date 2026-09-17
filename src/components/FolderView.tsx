@@ -20,6 +20,7 @@ interface FolderViewProps {
   onMoveItem?: (itemId: string, isFolderItem: boolean, targetFolderId: string | null) => void;
   onShare?: (doc: any) => void;
   onRename?: (id: string, isFolder: boolean, currentName: string) => void;
+  onOpenItemSheet?: (item: any, isFolder: boolean) => void;
 }
 
 export const FolderView: React.FC<FolderViewProps> = ({
@@ -39,6 +40,7 @@ export const FolderView: React.FC<FolderViewProps> = ({
   onMoveItem,
   onShare,
   onRename,
+  onOpenItemSheet,
 }) => {
   const [isDragOver, setIsDragOver] = React.useState(false);
 
@@ -94,8 +96,8 @@ export const FolderView: React.FC<FolderViewProps> = ({
     }
   };
 
-  if (isLoading) {
-    return <FolderViewSkeleton cardSize={cardSize} />;
+  if (isLoading && subfolders.length === 0 && documents.length === 0) {
+    return <FolderViewSkeleton cardSize={cardSize} currentTab={currentTab} />;
   }
 
   const isEmpty = subfolders.length === 0 && documents.length === 0;
@@ -192,6 +194,7 @@ export const FolderView: React.FC<FolderViewProps> = ({
                     onDelete={onDelete}
                     onRename={onRename}
                     onMoveItem={onMoveItem}
+                    onOpenItemSheet={onOpenItemSheet}
                   />
                 ))}
               </div>
@@ -215,6 +218,7 @@ export const FolderView: React.FC<FolderViewProps> = ({
                     onRename={onRename}
                     onMoveItem={onMoveItem}
                     onShare={onShare}
+                    onOpenItemSheet={onOpenItemSheet}
                   />
                 ))}
               </div>
