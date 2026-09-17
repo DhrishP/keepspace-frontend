@@ -61,26 +61,31 @@ export const FolderSkeletonGrid: React.FC<SkeletonLoaderProps> = ({ cardSize = '
   );
 };
 
-export const FolderViewSkeleton: React.FC<{ cardSize: 'sm' | 'md' | 'lg' }> = ({ cardSize }) => {
+export const FolderViewSkeleton: React.FC<{ cardSize: 'sm' | 'md' | 'lg'; currentTab?: string }> = ({ cardSize, currentTab = 'all' }) => {
+  const showFolders = currentTab === 'all';
+
   return (
-    <div className="content-pane skeleton-container" style={{ animation: 'fadeIn 0.2s ease-out' }}>
+    <div className="content-pane skeleton-container" style={{ animation: 'fadeIn 0.15s ease-out' }}>
       <div className="section-header">
-        <div className="skeleton-box skeleton-text" style={{ width: '180px', height: '24px' }} />
-        <div style={{ display: 'flex', gap: '10px' }}>
-          <div className="skeleton-box" style={{ width: '100px', height: '32px', borderRadius: 'var(--border-radius-sm)' }} />
-          <div className="skeleton-box" style={{ width: '110px', height: '32px', borderRadius: 'var(--border-radius-sm)' }} />
+        <div className="skeleton-box skeleton-text" style={{ width: '160px', height: '22px' }} />
+        <div style={{ display: 'flex', gap: '8px' }}>
+          <div className="skeleton-box" style={{ width: '84px', height: '32px', borderRadius: 'var(--border-radius-sm)' }} />
+          <div className="skeleton-box" style={{ width: '96px', height: '32px', borderRadius: 'var(--border-radius-sm)' }} />
         </div>
       </div>
 
-      <div style={{ marginBottom: '24px' }}>
-        <div className="skeleton-box skeleton-text" style={{ width: '90px', height: '14px', marginBottom: '12px' }} />
-        <FolderSkeletonGrid cardSize={cardSize} count={3} />
-      </div>
+      {showFolders && (
+        <div style={{ marginBottom: '20px' }}>
+          <div className="skeleton-box skeleton-text" style={{ width: '80px', height: '12px', marginBottom: '12px' }} />
+          <FolderSkeletonGrid cardSize={cardSize} count={2} />
+        </div>
+      )}
 
       <div>
-        <div className="skeleton-box skeleton-text" style={{ width: '60px', height: '14px', marginBottom: '12px' }} />
-        <CardSkeletonGrid cardSize={cardSize} count={6} />
+        <div className="skeleton-box skeleton-text" style={{ width: '60px', height: '12px', marginBottom: '12px' }} />
+        <CardSkeletonGrid cardSize={cardSize} count={4} />
       </div>
     </div>
   );
 };
+
