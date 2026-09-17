@@ -1,8 +1,10 @@
 import React from 'react';
-import { Plus, Search, FolderOpen, AlertCircle } from 'lucide-react';
+import { Plus, Search, FolderOpen, AlertCircle, UploadCloud, FolderPlus, Link2 } from 'lucide-react';
 import { DocumentCard } from './DocumentCard';
+import { FolderViewSkeleton } from './SkeletonLoader';
 
 interface FolderViewProps {
+  isLoading?: boolean;
   currentTab: string;
   folderName: string | null;
   subfolders: any[];
@@ -21,6 +23,7 @@ interface FolderViewProps {
 }
 
 export const FolderView: React.FC<FolderViewProps> = ({
+  isLoading,
   currentTab,
   folderName,
   subfolders,
@@ -91,6 +94,10 @@ export const FolderView: React.FC<FolderViewProps> = ({
     }
   };
 
+  if (isLoading) {
+    return <FolderViewSkeleton cardSize={cardSize} />;
+  }
+
   const isEmpty = subfolders.length === 0 && documents.length === 0;
 
   return (
@@ -144,16 +151,28 @@ export const FolderView: React.FC<FolderViewProps> = ({
         <div className="empty-state">
           <FolderOpen size={48} color="var(--text-muted)" />
           <h3 className="empty-state-title">This directory is empty</h3>
-          <p style={{ fontSize: '14px', maxWidth: '300px', textAlign: 'center' }}>
-            Get started by creating a new subfolder or uploading files and external URLs.
+          <p style={{ fontSize: '14px', maxWidth: '340px', textAlign: 'center', color: 'var(--text-muted)' }}>
+            Keep your PDFs, photos, and notes organized. Add content to this vault directory.
           </p>
-          <div style={{ display: 'flex', gap: '12px', marginTop: '8px' }}>
-            <button className="btn btn-secondary" onClick={() => onOpenUpload('folder')}>
-              New Folder
-            </button>
-            <button className="btn btn-primary" onClick={() => onOpenUpload('file')}>
-              Upload File
-            </button>
+          <div className="empty-actions-container">
+            <div className="empty-action-card" onClick={() => onOpenUpload('file')}>
+              <div className="empty-action-icon icon-pdf">
+                <UploadCloud size={20} />
+              </div>
+              <span>Upload Files</span>
+            </div>
+            <div className="empty-action-card" onClick={() => onOpenUpload('folder')}>
+              <div className="empty-action-icon icon-folder">
+                <FolderPlus size={20} />
+              </div>
+              <span>New Folder</span>
+            </div>
+            <div className="empty-action-card" onClick={() => onOpenUpload('link')}>
+              <div className="empty-action-icon icon-link">
+                <Link2 size={20} />
+              </div>
+              <span>Add Link</span>
+            </div>
           </div>
         </div>
       ) : (
