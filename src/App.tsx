@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Search, Sun, Moon, Menu } from 'lucide-react';
 import { Sidebar } from './components/Sidebar';
 import { Login } from './components/Login';
@@ -124,8 +124,10 @@ export default function App() {
   
   // Search query
   const [searchQuery, setSearchQuery] = useState<string>('');
+  const searchInputRef = useRef<HTMLInputElement>(null);
   
   // Data loading states
+  const [isLoading, setIsLoading] = useState<boolean>(true);
   const [folderName, setFolderName] = useState<string | null>(null);
   const [breadcrumbs, setBreadcrumbs] = useState<{ id: string; name: string }[]>([]);
   const [folders, setFolders] = useState<any[]>([]);
@@ -200,6 +202,7 @@ export default function App() {
   // Main Fetch: folders, breadcrumbs, items inside current folder or tab
   const fetchData = async () => {
     const cacheKey = currentFolderId ? `folder_${currentFolderId}` : `tab_${currentTab}`;
+    setIsLoading(true);
     try {
       let url = `${API_BASE_URL}/api/folders`;
       if (currentFolderId) {
@@ -250,6 +253,8 @@ export default function App() {
       } else {
         addToast("Offline mode: no local cache available for this view", "error");
       }
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -291,6 +296,34 @@ export default function App() {
     fetchStats();
     fetchSidebarFolders();
   }, [currentFolderId, currentTab]);
+
+  // Global Keyboard Shortcuts (⌘K to search, Esc to dismiss modal/search)
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
+        e.preventDefault();
+        searchInputRef.current?.focus();
+        searchInputRef.current?.select();
+      } else if (e.key === '/' && document.activeElement !== searchInputRef.current) {
+        const isInput = ['INPUT', 'TEXTAREA', 'SELECT'].includes(document.activeElement?.tagName || '');
+        if (!isInput) {
+          e.preventDefault();
+          searchInputRef.current?.focus();
+        }
+      } else if (e.key === 'Escape') {
+        if (previewDoc) setPreviewDoc(null);
+        else if (shareDoc) setShareDoc(null);
+        else if (activeUploadTab) setActiveUploadTab(null);
+        else if (document.activeElement === searchInputRef.current) {
+          searchInputRef.current?.blur();
+          if (searchQuery) handleSearch('');
+        }
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [previewDoc, shareDoc, activeUploadTab, searchQuery]);
 
   // Helper to record last folder path context
   const updateLastUploadFolder = (parentId: string | null) => {
@@ -576,15 +609,19 @@ export default function App() {
             <button className="menu-toggle-btn" onClick={() => setSidebarOpen(true)} title="Open Menu">
               <Menu size={18} />
             </button>
-            <div className="search-bar">
-              <Search size={18} color="var(--text-muted)" />
+            <div className="search-bar" onClick={() => searchInputRef.current?.focus()}>
+              <Search size={16} color="var(--text-muted)" />
               <input 
+                ref={searchInputRef}
                 type="text" 
                 className="search-input" 
                 placeholder="Search folders and documents..." 
                 value={searchQuery}
                 onChange={(e) => handleSearch(e.target.value)}
               />
+              {!searchQuery && (
+                <span className="kbd-badge" title="Press ⌘K or / to search">⌘K</span>
+              )}
             </div>
           </div>
 
@@ -608,6 +645,7 @@ export default function App() {
 
         {/* Content Viewer Grid */}
         <FolderView 
+          isLoading={isLoading}
           currentTab={currentTab}
           folderName={folderName}
           subfolders={folders}
