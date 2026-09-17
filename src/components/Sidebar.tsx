@@ -49,9 +49,9 @@ export const Sidebar: React.FC<SidebarProps> = ({
   stats,
   onLogout
 }) => {
-  // Compute storage used
+  // Compute storage used (1 GB capacity)
   const totalSizeBytes = stats?.byType.reduce((acc, curr) => acc + (curr.total_size || 0), 0) || 0;
-  const storageLimitBytes = 100 * 1024 * 1024; // 100 MB limit
+  const storageLimitBytes = 1024 * 1024 * 1024; // 1 GB limit
   const storagePercentage = Math.min((totalSizeBytes / storageLimitBytes) * 100, 100);
 
   // Helper to format bytes
@@ -157,7 +157,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
         <div className="storage-stats">
           <div className="storage-header">
             <span>Storage Capacity</span>
-            <span>{formatBytes(totalSizeBytes)} / 100 MB</span>
+            <span>{formatBytes(totalSizeBytes)} / 1 GB</span>
           </div>
           <div className="storage-bar">
             <div className="storage-used" style={{ width: `${storagePercentage}%` }}></div>
