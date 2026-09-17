@@ -1,20 +1,46 @@
 {
+  "id": "/",
   "short_name": "KeepSpace",
-  "name": "KeepSpace - Premium PWA Document Vault",
+  "name": "KeepSpace - Secure Document Vault",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "background_color": "#09090b",
+  "theme_color": "#09090b",
+  "description": "Premium secure document vault for PDFs, images, videos, and links built with Cloudflare D1 and R2.",
   "icons": [
+    {
+      "src": "/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "maskable"
+    },
+    {
+      "src": "/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    },
     {
       "src": "/logo.svg",
       "sizes": "any",
       "type": "image/svg+xml",
-      "purpose": "any maskable"
+      "purpose": "any"
     }
   ],
-  "start_url": "/",
-  "background_color": "#0d0f12",
-  "theme_color": "#09090b",
-  "display": "standalone",
-  "orientation": "portrait-primary",
-  "description": "Premium secure document vault for PDFs, images, videos, and links built with Cloudflare D1 and R2.",
   "share_target": {
     "action": "/share-target",
     "method": "POST",
@@ -26,7 +52,7 @@
       "files": [
         {
           "name": "files",
-          "accept": ["image/*", "video/*", "application/pdf", "text/*", "*/*"]
+          "accept": ["image/*", "video/*", "application/pdf"]
         }
       ]
     }
