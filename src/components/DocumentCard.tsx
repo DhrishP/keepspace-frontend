@@ -1,5 +1,6 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { API_BASE_URL } from '../config';
+import { downloadDocument } from '../utils/download';
 import { 
   Folder, 
   FileText, 
@@ -13,7 +14,8 @@ import {
   Eye,
   ExternalLink,
   Share2,
-  Edit3
+  Edit3,
+  Loader2
 } from 'lucide-react';
 
 interface DocumentCardProps {
@@ -39,7 +41,16 @@ export const DocumentCard: React.FC<DocumentCardProps> = ({
   onMoveItem,
   onShare,
 }) => {
-  const [isDragOver, setIsDragOver] = React.useState(false);
+  const [isDragOver, setIsDragOver] = useState(false);
+  const [isDownloading, setIsDownloading] = useState(false);
+
+  const handleDownloadClick = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (isDownloading) return;
+    setIsDownloading(true);
+    await downloadDocument(`${API_BASE_URL}/api/documents/${item.id}/download`, item.name);
+    setIsDownloading(false);
+  };
 
   const handleDragStart = (e: React.DragEvent) => {
     e.dataTransfer.setData('text/plain', JSON.stringify({
@@ -206,15 +217,14 @@ export const DocumentCard: React.FC<DocumentCardProps> = ({
           )}
           
           {item.type !== 'link' ? (
-            <a 
-              href={`${API_BASE_URL}/api/documents/${item.id}/download?download=true`} 
+            <button 
               className="card-action-btn"
-              onClick={(e) => e.stopPropagation()}
-              title="Download File"
-              download
+              onClick={handleDownloadClick}
+              title={isDownloading ? "Downloading file..." : "Download File"}
+              disabled={isDownloading}
             >
-              <Download size={16} />
-            </a>
+              {isDownloading ? <Loader2 size={16} className="spin-icon" /> : <Download size={16} />}
+            </button>
           ) : (
             <a 
               href={item.url} 
