@@ -1,13 +1,14 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Camera, UploadCloud, FolderPlus, Link2, Folder, X, ChevronDown } from 'lucide-react';
+import { Camera, UploadCloud, FolderPlus, Link2, Folder, X, ChevronDown, Clipboard } from 'lucide-react';
 import { API_BASE_URL } from '../config';
-import { hapticLight, hapticSelection } from '../utils/haptics';
+import { hapticLight, hapticSelection, hapticSuccess } from '../utils/haptics';
 
 interface MobileActionSheetProps {
   isOpen: boolean;
   onClose: () => void;
   onUploadFiles: (files: FileList, parentId: string | null) => Promise<void>;
   onOpenUploadModal: (tab: 'file' | 'folder' | 'link', parentId?: string | null) => void;
+  onPastePhoto?: (files: File[]) => void;
   currentFolderId: string | null;
   currentFolderName: string | null;
 }
@@ -17,6 +18,7 @@ export const MobileActionSheet: React.FC<MobileActionSheetProps> = ({
   onClose,
   onUploadFiles,
   onOpenUploadModal,
+  onPastePhoto,
   currentFolderId,
   currentFolderName,
 }) => {
@@ -155,7 +157,61 @@ export const MobileActionSheet: React.FC<MobileActionSheetProps> = ({
             </div>
           </button>
 
-          {/* Option 3: New Folder */}
+          {/* Option 3: Paste Photo from Clipboard */}
+          <button 
+            type="button"
+            className="mobile-action-card"
+            onClick={async () => {
+              hapticSelection();
+              try {
+                if (!navigator.clipboard || !navigator.clipboard.read) {
+                  alert('Clipboard API not supported in this browser. Try copying a photo and using Ctrl+V on desktop.');
+                  return;
+                }
+                const clipboardItems = await navigator.clipboard.read();
+                const pastedFiles: File[] = [];
+                for (const item of clipboardItems) {
+                  for (const mimeType of item.types) {
+                    if (mimeType.startsWith('image/')) {
+                      const blob = await item.getType(mimeType);
+                      const ext = mimeType.split('/')[1] || 'png';
+                      const file = new File(
+                        [blob],
+                        `pasted_${new Date().toISOString().slice(0, 19).replace(/[T:]/g, '-')}.${ext}`,
+                        { type: mimeType }
+                      );
+                      pastedFiles.push(file);
+                    }
+                  }
+                }
+                if (pastedFiles.length > 0) {
+                  hapticSuccess();
+                  onClose();
+                  if (onPastePhoto) {
+                    onPastePhoto(pastedFiles);
+                  }
+                } else {
+                  alert('No image found in clipboard. Copy a photo first, then tap Paste Photo.');
+                }
+              } catch (err: any) {
+                if (err.name === 'NotAllowedError') {
+                  alert('Clipboard permission denied. Please allow clipboard access and try again.');
+                } else {
+                  alert('No image found in clipboard. Copy a photo first.');
+                }
+              }
+            }}
+          >
+            <div className="mobile-action-icon" style={{ background: 'rgba(168, 85, 247, 0.15)', color: '#a855f7' }}>
+              <Clipboard size={22} />
+            </div>
+            <div className="mobile-action-texts">
+              <span className="mobile-action-name">Paste Photo</span>
+              <span className="mobile-action-desc">From clipboard</span>
+            </div>
+          </button>
+
+          {/* Option 4: New Folder */}
           <button 
             type="button"
             className="mobile-action-card"
@@ -174,7 +230,7 @@ export const MobileActionSheet: React.FC<MobileActionSheetProps> = ({
             </div>
           </button>
 
-          {/* Option 4: Add Link */}
+          {/* Option 5: Add Link */}
           <button 
             type="button"
             className="mobile-action-card"

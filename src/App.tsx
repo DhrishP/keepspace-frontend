@@ -1157,6 +1157,10 @@ export default function App() {
         onOpenUploadModal={(tab, parentId) => {
           handleOpenUpload(tab, parentId);
         }}
+        onPastePhoto={(files) => {
+          hapticSuccess();
+          setIncomingShare({ files, link: null });
+        }}
         currentFolderId={currentFolderId}
         currentFolderName={folderName}
       />

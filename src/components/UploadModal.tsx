@@ -167,7 +167,31 @@ export const UploadModal: React.FC<UploadModalProps> = ({
 
         {/* Tab 1: Upload Files */}
         {activeTab === 'file' && (
-          <div>
+          <div
+            onPaste={async (e) => {
+              const items = e.clipboardData?.items;
+              if (!items) return;
+              const pastedFiles: File[] = [];
+              for (let i = 0; i < items.length; i++) {
+                if (items[i].kind === 'file') {
+                  const f = items[i].getAsFile();
+                  if (f) {
+                    pastedFiles.push(f);
+                  }
+                }
+              }
+              if (pastedFiles.length > 0) {
+                e.preventDefault();
+                setIsSubmitting(true);
+                const dt = new DataTransfer();
+                pastedFiles.forEach(f => dt.items.add(f));
+                await onUploadFiles(dt.files, selectedFolderId || null);
+                setIsSubmitting(false);
+                onClose();
+              }
+            }}
+            tabIndex={0}
+          >
             <input 
               type="file" 
               ref={fileInputRef} 
@@ -189,6 +213,9 @@ export const UploadModal: React.FC<UploadModalProps> = ({
               </p>
               <span className="dropzone-subtext">
                 Supports PDFs, Photos, Videos & Documents up to 1 GB
+              </span>
+              <span className="dropzone-subtext" style={{ marginTop: '4px', fontSize: '11px', opacity: 0.7 }}>
+                💡 Tip: You can also paste images with ⌘V / Ctrl+V
               </span>
             </div>
           </div>
