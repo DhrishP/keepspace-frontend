@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Search, Sun, Moon, Menu } from 'lucide-react';
+import { Search, Sun, Moon, Menu, X } from 'lucide-react';
 import { Sidebar } from './components/Sidebar';
 import { Login } from './components/Login';
 import { Breadcrumbs } from './components/Breadcrumbs';
@@ -255,6 +255,10 @@ export default function App() {
       let url = `${API_BASE_URL}/api/folders`;
       if (currentFolderId) {
         url = `${API_BASE_URL}/api/folders/${currentFolderId}`;
+      } else if (currentTab === 'favorites') {
+        url = `${API_BASE_URL}/api/search`;
+      } else if (currentTab !== 'all') {
+        url = `${API_BASE_URL}/api/search?type=${currentTab}`;
       }
       
       const res = await fetch(url);
@@ -264,7 +268,7 @@ export default function App() {
         setBreadcrumbs(data.breadcrumbs || []);
         
         // Filter folders/files depending on search query or tab filters
-        let allSubfolders = data.subfolders || [];
+        let allSubfolders = data.subfolders || data.folders || [];
         let allDocs = data.documents || [];
 
         // Apply Tab filters
@@ -772,7 +776,19 @@ export default function App() {
                 value={searchQuery}
                 onChange={(e) => handleSearch(e.target.value)}
               />
-              {!searchQuery && (
+              {searchQuery ? (
+                <button 
+                  className="search-bar-clear-btn" 
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleSearch('');
+                    searchInputRef.current?.focus();
+                  }}
+                  title="Clear search"
+                >
+                  <X size={14} />
+                </button>
+              ) : (
                 <span className="kbd-badge" title="Press ⌘K or / to search">⌘K</span>
               )}
             </div>
