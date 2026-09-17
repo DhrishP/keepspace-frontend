@@ -188,7 +188,7 @@ export const UploadModal: React.FC<UploadModalProps> = ({
                 {isSubmitting ? 'Uploading items...' : 'Drag & drop files here, or click to browse'}
               </p>
               <span className="dropzone-subtext">
-                Supports PDFs, Photos, Videos & Documents up to 100MB
+                Supports PDFs, Photos, Videos & Documents up to 1 GB
               </span>
             </div>
           </div>
