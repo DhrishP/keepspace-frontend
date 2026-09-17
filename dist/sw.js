@@ -39,7 +39,7 @@ self.addEventListener('fetch', (event) => {
   const url = new URL(event.request.url);
 
   // Handle Web Share Target POST request from system share sheet (Photos, Gallery, etc.)
-  if (event.request.method === 'POST' && url.pathname === '/share-target') {
+  if (event.request.method === 'POST' && (url.pathname === '/share-target' || url.pathname === '/share-target/')) {
     event.respondWith((async () => {
       try {
         const formData = await event.request.formData();
@@ -78,8 +78,8 @@ self.addEventListener('fetch', (event) => {
           })));
         }
 
-        // Redirect user to the app root with #shared hash
-        return Response.redirect('/#shared', 303);
+        // Redirect user to the app root with ?shared=1 query param
+        return Response.redirect('/?shared=1', 303);
       } catch (err) {
         console.error('[SW] Share target processing error:', err);
         return Response.redirect('/', 303);
