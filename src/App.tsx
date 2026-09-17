@@ -543,22 +543,113 @@ export default function App() {
     fetchStats();
   };
 
-  // Process incoming shared payload from Web Share Target API
+  // Process incoming shared payload from Web Share Target API (IndexedDB primary + CacheStorage fallback)
   const processIncomingShareTarget = useCallback(async () => {
-    if (!('caches' in window)) return;
     try {
+      // 1. Try reading from IndexedDB primary store
+      let idbRecord: any = null;
+      if ('indexedDB' in window) {
+        try {
+          idbRecord = await new Promise((resolve) => {
+            const req = indexedDB.open('keepspace_share_db', 1);
+            req.onupgradeneeded = (e: any) => {
+              const db = e.target.result;
+              if (!db.objectStoreNames.contains('shares')) {
+                db.createObjectStore('shares', { keyPath: 'id' });
+              }
+            };
+            req.onsuccess = (e: any) => {
+              try {
+                const db = e.target.result;
+                const tx = db.transaction('shares', 'readwrite');
+                const store = tx.objectStore('shares');
+                const getReq = store.get('pending_share');
+                getReq.onsuccess = () => {
+                  resolve(getReq.result || null);
+                };
+                getReq.onerror = () => resolve(null);
+              } catch (_) {
+                resolve(null);
+              }
+            };
+            req.onerror = () => resolve(null);
+          });
+        } catch (_) {}
+      }
+
+      if (idbRecord) {
+        // Ignore stale payloads older than 15 minutes
+        if (Date.now() - idbRecord.timestamp > 900000) {
+          try {
+            const req = indexedDB.open('keepspace_share_db', 1);
+            req.onsuccess = (e: any) => {
+              const db = e.target.result;
+              const tx = db.transaction('shares', 'readwrite');
+              tx.objectStore('shares').delete('pending_share');
+            };
+          } catch (_) {}
+          return;
+        }
+
+        // If user is locked/unauthenticated, do not delete yet! Keep for post-unlock
+        if (!isAuthenticated) {
+          return;
+        }
+
+        const incomingFiles: File[] = [];
+        if (idbRecord.files && Array.isArray(idbRecord.files)) {
+          for (let i = 0; i < idbRecord.files.length; i++) {
+            const f = idbRecord.files[i];
+            const blob = f.blob instanceof Blob ? f.blob : new Blob([f.blob], { type: f.type || 'image/jpeg' });
+            incomingFiles.push(new File([blob], f.name || `shared_photo_${Date.now()}.jpg`, { type: f.type || blob.type || 'image/jpeg' }));
+          }
+        }
+
+        // Clear IndexedDB pending_share record
+        try {
+          const req = indexedDB.open('keepspace_share_db', 1);
+          req.onsuccess = (e: any) => {
+            const db = e.target.result;
+            const tx = db.transaction('shares', 'readwrite');
+            tx.objectStore('shares').delete('pending_share');
+          };
+        } catch (_) {}
+
+        // Also clean cache fallback
+        if ('caches' in window) {
+          caches.open('keepspace-shared-payload').then((c) => {
+            c.keys().then((keys) => keys.forEach((k) => c.delete(k)));
+          }).catch(() => {});
+        }
+
+        if (incomingFiles.length > 0) {
+          hapticSuccess();
+          setIncomingShare({ files: incomingFiles, link: null });
+          return;
+        } else if (idbRecord.url || idbRecord.text) {
+          const targetLink = idbRecord.url || idbRecord.text;
+          if (targetLink && targetLink.startsWith('http')) {
+            hapticSuccess();
+            setIncomingShare({ files: [], link: { url: targetLink, title: idbRecord.title || '' } });
+            return;
+          }
+        }
+      }
+
+      // 2. Secondary fallback: CacheStorage
+      if (!('caches' in window)) return;
       const cache = await caches.open('keepspace-shared-payload');
       const metaRes = await cache.match('/shared-meta');
       if (!metaRes) return;
 
       const meta = await metaRes.json();
-      // Ignore stale payloads older than 10 minutes
-      if (!meta || Date.now() - meta.timestamp > 600000) {
+      // Ignore stale payloads older than 15 minutes
+      if (!meta || Date.now() - meta.timestamp > 900000) {
         await cache.delete('/shared-meta');
         return;
       }
 
-      // If user is locked/unauthenticated, do not delete payload yet! Keep it for post-unlock.
+      // If user is locked/unauthenticated, keep for post-unlock
       if (!isAuthenticated) {
         return;
       }
