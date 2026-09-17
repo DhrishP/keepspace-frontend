@@ -8,6 +8,14 @@ import { FilePreview } from './components/FilePreview';
 import { UploadModal } from './components/UploadModal';
 import { ShareModal } from './components/ShareModal';
 import { Toast, ToastMessage } from './components/Toast';
+import { ConfirmModal } from './components/ConfirmModal';
+import { RenameModal } from './components/RenameModal';
+import { MobileSearchModal } from './components/MobileSearchModal';
+import { MobileBottomBar } from './components/MobileBottomBar';
+import { MobileActionSheet } from './components/MobileActionSheet';
+import { MobileItemSheet } from './components/MobileItemSheet';
+import { downloadDocument } from './utils/download';
+import { hapticLight, hapticSuccess, hapticWarning } from './utils/haptics';
 import { usePWA } from './hooks/usePWA';
 import { API_BASE_URL } from './config';
 import { saveLocalVault, getLocalVault, saveLocalStats, getLocalStats } from './utils/localDb';
@@ -128,6 +136,7 @@ export default function App() {
   
   // Data loading states
   const [isLoading, setIsLoading] = useState<boolean>(true);
+  const [isRefreshing, setIsRefreshing] = useState<boolean>(false);
   const [folderName, setFolderName] = useState<string | null>(null);
   const [breadcrumbs, setBreadcrumbs] = useState<{ id: string; name: string }[]>([]);
   const [folders, setFolders] = useState<any[]>([]);
@@ -138,6 +147,38 @@ export default function App() {
   const [activeUploadTab, setActiveUploadTab] = useState<'file' | 'folder' | 'link' | null>(null);
   const [previewDoc, setPreviewDoc] = useState<any | null>(null);
   const [shareDoc, setShareDoc] = useState<any | null>(null);
+
+  // Dialog Modals (replacing window.confirm and window.prompt)
+  const [confirmModal, setConfirmModal] = useState<{
+    isOpen: boolean;
+    title: string;
+    description: string;
+    confirmText?: string;
+    isDanger?: boolean;
+    onConfirm: () => void;
+  } | null>(null);
+
+  const [renameModal, setRenameModal] = useState<{
+    isOpen: boolean;
+    id: string;
+    isFolder: boolean;
+    currentName: string;
+    onSave: (newName: string) => void;
+  } | null>(null);
+
+  // Mobile Experience States
+  const [mobileSearchOpen, setMobileSearchOpen] = useState<boolean>(false);
+  const [mobileActionSheetOpen, setMobileActionSheetOpen] = useState<boolean>(false);
+  const [mobileItemSheet, setMobileItemSheet] = useState<{
+    isOpen: boolean;
+    item: any;
+    isFolder: boolean;
+  } | null>(null);
+
+  // Pull-to-refresh state
+  const [pullDistance, setPullDistance] = useState<number>(0);
+  const [isPulling, setIsPulling] = useState<boolean>(false);
+  const pullTouchStartRef = useRef<number>(0);
   
   // Sidebar folders state (always shows top-level root folders)
   const [sidebarFolders, setSidebarFolders] = useState<any[]>([]);
@@ -200,9 +241,16 @@ export default function App() {
   };
 
   // Main Fetch: folders, breadcrumbs, items inside current folder or tab
-  const fetchData = async () => {
+  const fetchData = async (options?: { silent?: boolean }) => {
+    const isSilent = options?.silent ?? false;
     const cacheKey = currentFolderId ? `folder_${currentFolderId}` : `tab_${currentTab}`;
-    setIsLoading(true);
+    
+    if (isSilent) {
+      setIsRefreshing(true);
+    } else {
+      setIsLoading(true);
+    }
+
     try {
       let url = `${API_BASE_URL}/api/folders`;
       if (currentFolderId) {
@@ -254,7 +302,11 @@ export default function App() {
         addToast("Offline mode: no local cache available for this view", "error");
       }
     } finally {
-      setIsLoading(false);
+      if (isSilent) {
+        setIsRefreshing(false);
+      } else {
+        setIsLoading(false);
+      }
     }
   };
 
@@ -348,7 +400,7 @@ export default function App() {
       if (res.ok) {
         addToast(`Directory "${name}" created successfully`);
         updateLastUploadFolder(targetParent);
-        fetchData();
+        fetchData({ silent: true });
         fetchStats();
         fetchSidebarFolders();
       } else {
@@ -372,7 +424,7 @@ export default function App() {
       if (res.ok) {
         addToast("Link metadata saved successfully");
         updateLastUploadFolder(targetParent);
-        fetchData();
+        fetchData({ silent: true });
         fetchStats();
       } else {
         const err = await res.json();
@@ -414,71 +466,92 @@ export default function App() {
     }
 
     if (successCount > 0) {
+      hapticSuccess();
       addToast(`Successfully uploaded ${successCount} file(s)`);
       updateLastUploadFolder(targetParentId);
     }
     if (failCount > 0) {
+      hapticWarning();
       addToast(`Failed to upload ${failCount} file(s)`, 'error');
     }
 
-    fetchData();
+    fetchData({ silent: true });
     fetchStats();
   };
 
-  // Delete file or folder handler
-  const handleDelete = async (id: string, isFolder: boolean) => {
-    const confirmMessage = isFolder 
-      ? "Are you sure you want to delete this folder? All nested subfolders and files inside it will be permanently deleted."
-      : "Are you sure you want to delete this file?";
-      
-    if (!window.confirm(confirmMessage)) return;
-
-    try {
-      const url = isFolder ? `${API_BASE_URL}/api/folders/${id}` : `${API_BASE_URL}/api/documents/${id}`;
-      const res = await fetch(url, { method: 'DELETE' });
-      
-      if (res.ok) {
-        addToast(`${isFolder ? 'Folder' : 'File'} deleted successfully`);
-        fetchData();
-        fetchStats();
-        fetchSidebarFolders();
-      } else {
-        addToast("Unable to delete item", "error");
+  // Delete file or folder handler (Custom ConfirmModal instead of window.confirm)
+  const handleDelete = (id: string, isFolder: boolean) => {
+    setConfirmModal({
+      isOpen: true,
+      title: isFolder ? "Delete Directory" : "Delete Document",
+      description: isFolder 
+        ? "Are you sure you want to delete this folder? All nested files and subdirectories inside it will be permanently deleted."
+        : "Are you sure you want to delete this file? It will be permanently removed from your vault.",
+      confirmText: "Delete",
+      isDanger: true,
+      onConfirm: async () => {
+        try {
+          const url = isFolder ? `${API_BASE_URL}/api/folders/${id}` : `${API_BASE_URL}/api/documents/${id}`;
+          const res = await fetch(url, { method: 'DELETE' });
+          
+          if (res.ok) {
+            hapticSuccess();
+            addToast(`${isFolder ? 'Folder' : 'File'} deleted successfully`);
+            fetchData({ silent: true });
+            fetchStats();
+            fetchSidebarFolders();
+          } else {
+            addToast("Unable to delete item", "error");
+          }
+        } catch (e) {
+          addToast("Network error deleting item", "error");
+        } finally {
+          setConfirmModal(null);
+        }
       }
-    } catch (e) {
-      addToast("Network error deleting item", "error");
-    }
+    });
   };
 
-  // Rename file or folder handler
-  const handleRename = async (id: string, isFolder: boolean, currentName: string) => {
-    const newName = window.prompt(`Rename ${isFolder ? 'folder' : 'file'}:`, currentName);
-    if (!newName || !newName.trim() || newName.trim() === currentName) return;
+  // Rename file or folder handler (Custom RenameModal instead of window.prompt)
+  const handleRename = (id: string, isFolder: boolean, currentName: string) => {
+    setRenameModal({
+      isOpen: true,
+      id,
+      isFolder,
+      currentName,
+      onSave: async (newName: string) => {
+        try {
+          const url = isFolder ? `${API_BASE_URL}/api/folders/${id}` : `${API_BASE_URL}/api/documents/${id}`;
+          const res = await fetch(url, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ name: newName.trim() })
+          });
 
-    try {
-      const url = isFolder ? `${API_BASE_URL}/api/folders/${id}` : `${API_BASE_URL}/api/documents/${id}`;
-      const res = await fetch(url, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: newName.trim() })
-      });
-
-      if (res.ok) {
-        addToast(`${isFolder ? 'Folder' : 'File'} renamed successfully`);
-        fetchData();
-        fetchSidebarFolders();
-      } else {
-        const err = await res.json();
-        addToast(err.error || "Failed to rename", "error");
+          if (res.ok) {
+            hapticSuccess();
+            addToast(`${isFolder ? 'Folder' : 'File'} renamed successfully`);
+            fetchData({ silent: true });
+            fetchSidebarFolders();
+          } else {
+            const err = await res.json();
+            addToast(err.error || "Failed to rename", "error");
+          }
+        } catch (e) {
+          addToast("Network error renaming item", "error");
+        } finally {
+          setRenameModal(null);
+        }
       }
-    } catch (e) {
-      addToast("Network error renaming item", "error");
-    }
+    });
   };
 
   // Toggle favorite status
   const handleToggleFavorite = async (id: string, currentFav: number) => {
     const nextFav = currentFav === 1 ? 0 : 1;
+    // Optimistic UI update
+    setDocuments(prev => prev.map(doc => doc.id === id ? { ...doc, favorite: nextFav } : doc));
+    hapticLight();
     try {
       const res = await fetch(`${API_BASE_URL}/api/documents/${id}`, {
         method: 'PUT',
@@ -487,10 +560,11 @@ export default function App() {
       });
       if (res.ok) {
         addToast(nextFav === 1 ? "Added to favorites" : "Removed from favorites");
-        fetchData();
+        fetchData({ silent: true });
       }
     } catch (e) {
       console.error(e);
+      fetchData({ silent: true });
     }
   };
 
@@ -562,12 +636,63 @@ export default function App() {
   // Handler to open upload panel or prompt for folder creation fast
   const handleOpenUpload = (tab: 'file' | 'folder' | 'link') => {
     if (tab === 'folder') {
-      const name = window.prompt("Enter new folder name:");
-      if (name && name.trim()) {
-        handleCreateFolder(name.trim());
-      }
+      setRenameModal({
+        isOpen: true,
+        id: '',
+        isFolder: true,
+        currentName: '',
+        onSave: async (name: string) => {
+          if (name && name.trim()) {
+            await handleCreateFolder(name.trim());
+          }
+          setRenameModal(null);
+        }
+      });
     } else {
       setActiveUploadTab(tab);
+    }
+  };
+
+  // Mobile item sheet open handler
+  const handleOpenItemSheet = (item: any, isFolder: boolean) => {
+    setMobileItemSheet({
+      isOpen: true,
+      item,
+      isFolder
+    });
+  };
+
+  // Pull-to-refresh handlers
+  const handleMainTouchStart = (e: React.TouchEvent<HTMLDivElement>) => {
+    if (e.currentTarget.scrollTop === 0) {
+      pullTouchStartRef.current = e.touches[0].clientY;
+      setIsPulling(true);
+    }
+  };
+
+  const handleMainTouchMove = (e: React.TouchEvent<HTMLDivElement>) => {
+    if (!isPulling) return;
+    const delta = e.touches[0].clientY - pullTouchStartRef.current;
+    if (delta > 0 && e.currentTarget.scrollTop === 0) {
+      setPullDistance(Math.min(delta * 0.45, 80));
+    }
+  };
+
+  const handleMainTouchEnd = async () => {
+    if (!isPulling) return;
+    if (pullDistance > 55) {
+      hapticLight();
+      setPullDistance(0);
+      setIsPulling(false);
+      await Promise.all([
+        fetchData({ silent: true }),
+        fetchStats(),
+        fetchSidebarFolders()
+      ]);
+      addToast("Vault refreshed", "success");
+    } else {
+      setPullDistance(0);
+      setIsPulling(false);
     }
   };
 
@@ -577,6 +702,9 @@ export default function App() {
 
   return (
     <div className="app-shell">
+      {/* Slim Top Glowing Progress Line for silent refreshes */}
+      <div className={`top-loader-bar ${isRefreshing ? 'active' : ''}`} />
+
       {/* Toast Overlay */}
       <Toast toasts={toasts} removeToast={removeToast} />
 
@@ -602,14 +730,35 @@ export default function App() {
       )}
 
       {/* Main Content Area */}
-      <main className="main-area">
+      <main 
+        className="main-area"
+        onTouchStart={handleMainTouchStart}
+        onTouchMove={handleMainTouchMove}
+        onTouchEnd={handleMainTouchEnd}
+      >
+        {/* Pull to refresh visual indicator */}
+        {pullDistance > 0 && (
+          <div className="pull-to-refresh-indicator" style={{ height: `${pullDistance}px`, opacity: pullDistance / 55 }}>
+            <div className={`pull-refresh-spinner ${pullDistance > 55 ? 'ready' : ''}`} />
+          </div>
+        )}
+
         {/* Header Area */}
         <header className="main-header">
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
             <button className="menu-toggle-btn" onClick={() => setSidebarOpen(true)} title="Open Menu">
               <Menu size={18} />
             </button>
-            <div className="search-bar" onClick={() => searchInputRef.current?.focus()}>
+            <div 
+              className="search-bar" 
+              onClick={() => {
+                if (window.innerWidth <= 768) {
+                  setMobileSearchOpen(true);
+                } else {
+                  searchInputRef.current?.focus();
+                }
+              }}
+            >
               <Search size={16} color="var(--text-muted)" />
               <input 
                 ref={searchInputRef}
@@ -661,8 +810,88 @@ export default function App() {
           setCardSize={handleSetCardSize}
           onMoveItem={handleMoveItem}
           onShare={handleOpenShare}
+          onOpenItemSheet={handleOpenItemSheet}
         />
       </main>
+
+      {/* Mobile Bottom Navigation Bar */}
+      <MobileBottomBar
+        currentTab={currentTab}
+        currentFolderId={currentFolderId}
+        onNavigateTab={handleSelectTab}
+        onOpenActionSheet={() => setMobileActionSheetOpen(true)}
+        onOpenSearch={() => setMobileSearchOpen(true)}
+        onOpenSidebar={() => setSidebarOpen(true)}
+      />
+
+      {/* Mobile Instant Search Overlay */}
+      <MobileSearchModal
+        isOpen={mobileSearchOpen}
+        onClose={() => setMobileSearchOpen(false)}
+        onSelectDocument={handleOpenPreview}
+        onSelectFolder={handleNavigateFolder}
+      />
+
+      {/* Mobile Quick-Action Sheet (+ FAB) */}
+      <MobileActionSheet
+        isOpen={mobileActionSheetOpen}
+        onClose={() => setMobileActionSheetOpen(false)}
+        onUploadFiles={async (files) => {
+          await handleUploadFiles(files);
+        }}
+        onOpenUploadModal={(tab) => {
+          handleOpenUpload(tab);
+        }}
+        currentFolderName={folderName}
+      />
+
+      {/* Mobile Document Actions Sheet */}
+      {mobileItemSheet && (
+        <MobileItemSheet
+          isOpen={mobileItemSheet.isOpen}
+          item={mobileItemSheet.item}
+          isFolder={mobileItemSheet.isFolder}
+          onClose={() => setMobileItemSheet(null)}
+          onPreview={(doc) => {
+            if (mobileItemSheet.isFolder) {
+              handleNavigateFolder(doc.id);
+            } else {
+              handleOpenPreview(doc);
+            }
+          }}
+          onDownload={async (item) => {
+            await downloadDocument(`${API_BASE_URL}/api/documents/${item.id}/download`, item.name);
+          }}
+          onToggleFavorite={handleToggleFavorite}
+          onRename={handleRename}
+          onDelete={handleDelete}
+          onShare={handleOpenShare}
+        />
+      )}
+
+      {/* Custom Confirmation Modal (replacing window.confirm) */}
+      {confirmModal && (
+        <ConfirmModal
+          isOpen={confirmModal.isOpen}
+          title={confirmModal.title}
+          description={confirmModal.description}
+          confirmText={confirmModal.confirmText}
+          isDanger={confirmModal.isDanger}
+          onConfirm={confirmModal.onConfirm}
+          onClose={() => setConfirmModal(null)}
+        />
+      )}
+
+      {/* Custom Rename Modal (replacing window.prompt) */}
+      {renameModal && (
+        <RenameModal
+          isOpen={renameModal.isOpen}
+          currentName={renameModal.currentName}
+          isFolder={renameModal.isFolder}
+          onSave={renameModal.onSave}
+          onClose={() => setRenameModal(null)}
+        />
+      )}
 
       {/* Upload Wizard Overlay */}
       {activeUploadTab && (
@@ -697,3 +926,4 @@ export default function App() {
     </div>
   );
 }
+
