@@ -10,8 +10,8 @@ import {
   Folder, 
   File, 
   ChevronRight,
-  Clock,
-  Sparkles
+  Sparkles,
+  Layers
 } from 'lucide-react';
 import { API_BASE_URL } from '../config';
 import { hapticLight, hapticSelection } from '../utils/haptics';
@@ -33,14 +33,17 @@ export const MobileSearchModal: React.FC<MobileSearchModalProps> = ({
 }) => {
   const [query, setQuery] = useState('');
   const [activeFilter, setActiveFilter] = useState<FilterType>('all');
+  const [vaultItems, setVaultItems] = useState<{ folders: any[]; documents: any[] }>({ folders: [], documents: [] });
   const [results, setResults] = useState<{ folders: any[]; documents: any[] }>({ folders: [], documents: [] });
+  const [isLoadingVault, setIsLoadingVault] = useState(false);
   const [isSearching, setIsSearching] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
 
+  // Load all items when opening modal
   useEffect(() => {
     if (!isOpen) {
       setQuery('');
-      setResults({ folders: [], documents: [] });
+      setActiveFilter('all');
       return;
     }
 
@@ -53,13 +56,38 @@ export const MobileSearchModal: React.FC<MobileSearchModalProps> = ({
       if (e.key === 'Escape') onClose();
     };
     window.addEventListener('keydown', handleKeyDown);
+
+    // Fetch all vault items to make pills/badges work instantly
+    const loadVaultData = async () => {
+      setIsLoadingVault(true);
+      try {
+        const res = await fetch(`${API_BASE_URL}/api/search`);
+        if (res.ok) {
+          const data = await res.json();
+          const items = {
+            folders: data.folders || [],
+            documents: data.documents || []
+          };
+          setVaultItems(items);
+          setResults(items);
+        }
+      } catch (e) {
+        console.error("Failed to load initial vault items for search:", e);
+      } finally {
+        setIsLoadingVault(false);
+      }
+    };
+
+    loadVaultData();
+
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [isOpen, onClose]);
 
-  // Debounced search
+  // Handle debounced search query
   useEffect(() => {
     if (!query.trim()) {
-      setResults({ folders: [], documents: [] });
+      // If query is empty, instantly restore full vault items
+      setResults(vaultItems);
       setIsSearching(false);
       return;
     }
@@ -80,29 +108,41 @@ export const MobileSearchModal: React.FC<MobileSearchModalProps> = ({
       } finally {
         setIsSearching(false);
       }
-    }, 220);
+    }, 200);
 
     return () => clearTimeout(timer);
-  }, [query]);
+  }, [query, vaultItems]);
 
   if (!isOpen) return null;
 
-  // Filter results by activeFilter
-  const filteredFolders = activeFilter === 'all' || activeFilter === 'folder' ? results.folders : [];
+  // Dynamic counts based on current active results
+  const counts = {
+    all: (results.folders || []).length + (results.documents || []).length,
+    pdf: (results.documents || []).filter(d => d.type === 'pdf').length,
+    image: (results.documents || []).filter(d => d.type === 'image').length,
+    video: (results.documents || []).filter(d => d.type === 'video').length,
+    link: (results.documents || []).filter(d => d.type === 'link').length,
+    folder: (results.folders || []).length,
+  };
+
+  const filters: { id: FilterType; label: string; count: number }[] = [
+    { id: 'all', label: 'All', count: counts.all },
+    { id: 'pdf', label: 'PDFs', count: counts.pdf },
+    { id: 'image', label: 'Photos', count: counts.image },
+    { id: 'video', label: 'Videos', count: counts.video },
+    { id: 'link', label: 'Links', count: counts.link },
+    { id: 'folder', label: 'Folders', count: counts.folder },
+  ];
+
+  // Filter results by active badge
+  const filteredFolders = (activeFilter === 'all' || activeFilter === 'folder') ? (results.folders || []) : [];
   const filteredDocs = activeFilter === 'folder' 
     ? [] 
-    : (activeFilter === 'all' ? results.documents : results.documents.filter(d => d.type === activeFilter));
+    : (activeFilter === 'all' 
+        ? (results.documents || []) 
+        : (results.documents || []).filter(d => d.type === activeFilter));
 
   const totalCount = filteredFolders.length + filteredDocs.length;
-
-  const filters: { id: FilterType; label: string }[] = [
-    { id: 'all', label: 'All' },
-    { id: 'pdf', label: 'PDFs' },
-    { id: 'image', label: 'Photos' },
-    { id: 'video', label: 'Videos' },
-    { id: 'link', label: 'Links' },
-    { id: 'folder', label: 'Folders' },
-  ];
 
   const getIcon = (type: string) => {
     switch (type) {
@@ -120,6 +160,11 @@ export const MobileSearchModal: React.FC<MobileSearchModalProps> = ({
     const sizes = ['B', 'KB', 'MB', 'GB'];
     const i = Math.floor(Math.log(bytes) / Math.log(k));
     return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
+  };
+
+  const getActiveFilterLabel = () => {
+    const f = filters.find(item => item.id === activeFilter);
+    return f ? f.label : 'Items';
   };
 
   return (
@@ -145,7 +190,7 @@ export const MobileSearchModal: React.FC<MobileSearchModalProps> = ({
             className="mobile-search-input"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            placeholder="Search documents, text, folders..."
+            placeholder="Search files, text, folders..."
             autoComplete="off"
             autoCorrect="off"
             spellCheck={false}
@@ -166,7 +211,7 @@ export const MobileSearchModal: React.FC<MobileSearchModalProps> = ({
         </div>
       </div>
 
-      {/* Quick Filter Pills */}
+      {/* Quick Filter Pills with Dynamic Counts */}
       <div className="mobile-search-pills-bar">
         {filters.map(f => (
           <button
@@ -177,48 +222,58 @@ export const MobileSearchModal: React.FC<MobileSearchModalProps> = ({
               setActiveFilter(f.id);
             }}
           >
-            {f.label}
+            <span>{f.label}</span>
+            <span className="mobile-search-pill-count">{f.count}</span>
           </button>
         ))}
       </div>
 
       {/* Search Results Content */}
       <div className="mobile-search-body">
-        {isSearching && (
+        {(isLoadingVault && !results.folders.length && !results.documents.length) ? (
+          <div className="mobile-search-loading">
+            <div className="mobile-search-spinner" />
+            <span>Loading vault items...</span>
+          </div>
+        ) : isSearching ? (
           <div className="mobile-search-loading">
             <div className="mobile-search-spinner" />
             <span>Searching vault...</span>
           </div>
-        )}
-
-        {!isSearching && !query.trim() && (
+        ) : totalCount === 0 ? (
           <div className="mobile-search-empty-state">
             <div className="mobile-search-icon-bubble">
-              <Sparkles size={28} />
+              {query.trim() ? <Search size={28} /> : <Layers size={28} />}
             </div>
-            <h4 style={{ margin: '8px 0 4px', fontSize: '16px', fontWeight: 600 }}>Quick Vault Search</h4>
-            <p style={{ color: 'var(--text-muted)', fontSize: '13px', maxWidth: '260px' }}>
-              Type a name, extension, or text inside PDFs and documents to find it instantly.
+            <h4 style={{ margin: '8px 0 4px', fontSize: '16px', fontWeight: 600 }}>
+              {query.trim() ? 'No results found' : `No ${getActiveFilterLabel()} found`}
+            </h4>
+            <p style={{ color: 'var(--text-muted)', fontSize: '13px', maxWidth: '280px', margin: '0 auto 16px' }}>
+              {query.trim() 
+                ? `No matches for "${query}" in ${activeFilter === 'all' ? 'the vault' : getActiveFilterLabel().toLowerCase()}.` 
+                : `There are currently no ${getActiveFilterLabel().toLowerCase()} in your vault.`}
             </p>
+            {query.trim() && (
+              <button 
+                className="btn btn-secondary" 
+                style={{ padding: '8px 18px', fontSize: '13px', borderRadius: '20px' }}
+                onClick={() => {
+                  hapticLight();
+                  setQuery('');
+                  setActiveFilter('all');
+                  inputRef.current?.focus();
+                }}
+              >
+                Clear Search
+              </button>
+            )}
           </div>
-        )}
-
-        {!isSearching && query.trim() && totalCount === 0 && (
-          <div className="mobile-search-empty-state">
-            <div className="mobile-search-icon-bubble">
-              <Search size={28} />
-            </div>
-            <h4 style={{ margin: '8px 0 4px', fontSize: '16px', fontWeight: 600 }}>No results found</h4>
-            <p style={{ color: 'var(--text-muted)', fontSize: '13px' }}>
-              No matches found for "{query}" with current filter.
-            </p>
-          </div>
-        )}
-
-        {!isSearching && totalCount > 0 && (
+        ) : (
           <div className="mobile-search-results-list">
             <div className="mobile-search-results-count">
-              Found {totalCount} {totalCount === 1 ? 'result' : 'results'}
+              {query.trim() 
+                ? `Found ${totalCount} ${totalCount === 1 ? 'result' : 'results'} for "${query}"` 
+                : `${getActiveFilterLabel()} (${totalCount})`}
             </div>
 
             {/* Folders */}
@@ -232,7 +287,7 @@ export const MobileSearchModal: React.FC<MobileSearchModalProps> = ({
                   onClose();
                 }}
               >
-                <div className="card-icon-box icon-folder" style={{ width: '36px', height: '36px', flexShrink: 0 }}>
+                <div className="card-icon-box icon-folder" style={{ width: '38px', height: '38px', flexShrink: 0 }}>
                   <Folder size={18} />
                 </div>
                 <div className="mobile-search-item-info">
@@ -254,15 +309,22 @@ export const MobileSearchModal: React.FC<MobileSearchModalProps> = ({
                   onClose();
                 }}
               >
-                <div className={`card-icon-box icon-${doc.type || 'other'}`} style={{ width: '36px', height: '36px', flexShrink: 0 }}>
+                <div className={`card-icon-box icon-${doc.type || 'other'}`} style={{ width: '38px', height: '38px', flexShrink: 0 }}>
                   {getIcon(doc.type)}
                 </div>
                 <div className="mobile-search-item-info">
                   <div className="mobile-search-item-title">{doc.name}</div>
                   <div className="mobile-search-item-meta">
-                    <span style={{ textTransform: 'uppercase' }}>{doc.type}</span>
+                    <span style={{ textTransform: 'uppercase', fontWeight: 600 }}>{doc.type}</span>
                     {doc.size ? <> • <span>{formatBytes(doc.size)}</span></> : null}
+                    {doc.description && !doc.match_snippet ? <> • <span>{doc.description}</span></> : null}
                   </div>
+                  {doc.match_snippet && (
+                    <div className="mobile-search-item-snippet" title={doc.match_snippet}>
+                      <Sparkles size={11} style={{ marginRight: '5px', flexShrink: 0 }} />
+                      <span>Matched in text: "{doc.match_snippet}"</span>
+                    </div>
+                  )}
                 </div>
                 <ChevronRight size={16} className="mobile-search-item-arrow" />
               </div>
