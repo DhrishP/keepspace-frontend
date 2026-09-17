@@ -88,14 +88,42 @@ export default function App() {
     setCurrentTab(tab);
   };
 
+  const handleOpenSearch = () => {
+    setMobileSearchOpen(true);
+    if (!window.location.hash.includes('search')) {
+      window.history.pushState({ modal: 'search' }, '', '#search');
+    }
+  };
+
+  const handleCloseSearch = () => {
+    setMobileSearchOpen(false);
+    if (window.location.hash.includes('search')) {
+      window.history.back();
+    }
+  };
+
   const handleOpenPreview = (doc: any) => {
     setPreviewDoc(doc);
-    window.history.pushState({ modal: 'preview' }, '');
+    window.history.pushState({ modal: 'preview' }, '', '#preview');
+  };
+
+  const handleClosePreview = () => {
+    setPreviewDoc(null);
+    if (window.location.hash.includes('preview')) {
+      window.history.back();
+    }
   };
 
   const handleOpenShare = (doc: any) => {
     setShareDoc(doc);
-    window.history.pushState({ modal: 'share' }, '');
+    window.history.pushState({ modal: 'share' }, '', '#share');
+  };
+
+  const handleCloseShare = () => {
+    setShareDoc(null);
+    if (window.location.hash.includes('share')) {
+      window.history.back();
+    }
   };
 
   // Sync state from URL hash & handle browser Back/Forward / PWA Swipe Back
@@ -105,11 +133,35 @@ export default function App() {
       const params = new URLSearchParams(hash);
       const folderParam = params.get('folder');
       const tabParam = params.get('tab');
+      const isSearch = hash === 'search';
+      const isPreview = hash === 'preview';
+      const isShare = hash === 'share';
 
-      // Close active modals on back navigation
-      setPreviewDoc(null);
-      setShareDoc(null);
+      // Close preview if we backed out of preview
+      if (!isPreview) {
+        setPreviewDoc(null);
+      }
+
+      // Close share if we backed out of share
+      if (!isShare) {
+        setShareDoc(null);
+      }
+
+      // If hash is #search, ensure search is visible
+      if (isSearch) {
+        setMobileSearchOpen(true);
+      } else if (!isPreview && !isShare) {
+        // If we backed out of search to dashboard or folder, close search
+        setMobileSearchOpen(false);
+      }
+
+      // Close transient sheets & dialogs on back navigation
       setActiveUploadTab(null);
+      setMobileActionSheetOpen(false);
+      setMobileItemSheet(null);
+      setConfirmModal(null);
+      setRenameModal(null);
+      setSidebarOpen(false);
 
       if (folderParam) {
         setCurrentFolderId(folderParam);
@@ -117,7 +169,7 @@ export default function App() {
       } else if (tabParam) {
         setCurrentFolderId(null);
         setCurrentTab(tabParam);
-      } else {
+      } else if (!isSearch && !isPreview && !isShare) {
         setCurrentFolderId(null);
         setCurrentTab('all');
       }
@@ -367,8 +419,9 @@ export default function App() {
           searchInputRef.current?.focus();
         }
       } else if (e.key === 'Escape') {
-        if (previewDoc) setPreviewDoc(null);
-        else if (shareDoc) setShareDoc(null);
+        if (previewDoc) handleClosePreview();
+        else if (shareDoc) handleCloseShare();
+        else if (mobileSearchOpen) handleCloseSearch();
         else if (activeUploadTab) setActiveUploadTab(null);
         else if (document.activeElement === searchInputRef.current) {
           searchInputRef.current?.blur();
@@ -379,7 +432,7 @@ export default function App() {
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [previewDoc, shareDoc, activeUploadTab, searchQuery]);
+  }, [previewDoc, shareDoc, activeUploadTab, searchQuery, mobileSearchOpen]);
 
   // Helper to record last folder path context
   const updateLastUploadFolder = (parentId: string | null) => {
@@ -761,7 +814,7 @@ export default function App() {
               className="search-bar" 
               onClick={() => {
                 if (window.innerWidth <= 768) {
-                  setMobileSearchOpen(true);
+                  handleOpenSearch();
                 } else {
                   searchInputRef.current?.focus();
                 }
@@ -840,14 +893,14 @@ export default function App() {
         currentFolderId={currentFolderId}
         onNavigateTab={handleSelectTab}
         onOpenActionSheet={() => setMobileActionSheetOpen(true)}
-        onOpenSearch={() => setMobileSearchOpen(true)}
+        onOpenSearch={handleOpenSearch}
         onOpenSidebar={() => setSidebarOpen(true)}
       />
 
       {/* Mobile Instant Search Overlay */}
       <MobileSearchModal
         isOpen={mobileSearchOpen}
-        onClose={() => setMobileSearchOpen(false)}
+        onClose={handleCloseSearch}
         onSelectDocument={handleOpenPreview}
         onSelectFolder={handleNavigateFolder}
       />
@@ -930,7 +983,7 @@ export default function App() {
       {previewDoc && (
         <FilePreview 
           document={previewDoc}
-          onClose={() => setPreviewDoc(null)}
+          onClose={handleClosePreview}
           onUpdateDescription={handleUpdateDescription}
         />
       )}
@@ -939,7 +992,7 @@ export default function App() {
       {shareDoc && (
         <ShareModal 
           document={shareDoc}
-          onClose={() => setShareDoc(null)}
+          onClose={handleCloseShare}
           onGenerateShareLink={handleGenerateShareLink}
           onAddToast={addToast}
         />
