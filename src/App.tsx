@@ -734,6 +734,51 @@ export default function App() {
     };
   }, [processIncomingShareTarget]);
 
+  // Global paste-to-upload: Ctrl+V / Cmd+V or long-press paste on mobile
+  useEffect(() => {
+    if (!isAuthenticated) return;
+
+    const handlePaste = (e: ClipboardEvent) => {
+      // Don't intercept paste if user is typing in an input/textarea
+      const target = e.target as HTMLElement;
+      if (target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable)) {
+        return;
+      }
+
+      const items = e.clipboardData?.items;
+      if (!items) return;
+
+      const pastedFiles: File[] = [];
+      for (let i = 0; i < items.length; i++) {
+        const item = items[i];
+        if (item.kind === 'file') {
+          const file = item.getAsFile();
+          if (file) {
+            // Give pasted images a readable name with timestamp
+            const ext = file.type.split('/')[1] || 'png';
+            const named = new File(
+              [file],
+              file.name && file.name !== 'image.png' ? file.name : `pasted_${new Date().toISOString().slice(0, 19).replace(/[T:]/g, '-')}.${ext}`,
+              { type: file.type }
+            );
+            pastedFiles.push(named);
+          }
+        }
+      }
+
+      if (pastedFiles.length > 0) {
+        e.preventDefault();
+        hapticSuccess();
+        setIncomingShare({ files: pastedFiles, link: null });
+      }
+    };
+
+    document.addEventListener('paste', handlePaste);
+    return () => {
+      document.removeEventListener('paste', handlePaste);
+    };
+  }, [isAuthenticated]);
+
   // Delete file or folder handler (Custom ConfirmModal instead of window.confirm)
   const handleDelete = (id: string, isFolder: boolean) => {
     setConfirmModal({
