@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { API_BASE_URL } from '../config';
 import { downloadDocument } from '../utils/download';
 import { 
@@ -15,8 +15,10 @@ import {
   ExternalLink,
   Share2,
   Edit3,
-  Loader2
+  Loader2,
+  MoreVertical
 } from 'lucide-react';
+import { hapticSelection } from '../utils/haptics';
 
 interface DocumentCardProps {
   item: any; // document or folder
@@ -28,6 +30,7 @@ interface DocumentCardProps {
   onRename?: (id: string, isFolder: boolean, currentName: string) => void;
   onMoveItem?: (itemId: string, isFolderItem: boolean, targetFolderId: string | null) => void;
   onShare?: (doc: any) => void;
+  onOpenItemSheet?: (item: any, isFolder: boolean) => void;
 }
 
 export const DocumentCard: React.FC<DocumentCardProps> = ({
@@ -40,9 +43,26 @@ export const DocumentCard: React.FC<DocumentCardProps> = ({
   onRename,
   onMoveItem,
   onShare,
+  onOpenItemSheet,
 }) => {
   const [isDragOver, setIsDragOver] = useState(false);
   const [isDownloading, setIsDownloading] = useState(false);
+  const touchTimerRef = useRef<NodeJS.Timeout | null>(null);
+
+  const handleTouchStart = () => {
+    if (!onOpenItemSheet) return;
+    touchTimerRef.current = setTimeout(() => {
+      hapticSelection();
+      onOpenItemSheet(item, isFolder);
+    }, 450);
+  };
+
+  const handleTouchEnd = () => {
+    if (touchTimerRef.current) {
+      clearTimeout(touchTimerRef.current);
+      touchTimerRef.current = null;
+    }
+  };
 
   const handleDownloadClick = async (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -128,12 +148,27 @@ export const DocumentCard: React.FC<DocumentCardProps> = ({
         onDragEnter={handleDragEnter}
         onDragLeave={handleDragLeave}
         onDrop={handleDrop}
+        onTouchStart={handleTouchStart}
+        onTouchEnd={handleTouchEnd}
+        onTouchMove={handleTouchEnd}
       >
         <div className="card-icon-row">
           <div className="card-icon-box icon-folder">
             <Folder size={24} />
           </div>
           <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
+            {onOpenItemSheet && (
+              <button 
+                className="card-more-btn" 
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onOpenItemSheet(item, true);
+                }}
+                title="Options"
+              >
+                <MoreVertical size={16} />
+              </button>
+            )}
             {onRename && (
               <button 
                 className="card-action-btn" 
@@ -197,12 +232,27 @@ export const DocumentCard: React.FC<DocumentCardProps> = ({
       onClick={() => onPreview(item)}
       draggable={true}
       onDragStart={handleDragStart}
+      onTouchStart={handleTouchStart}
+      onTouchEnd={handleTouchEnd}
+      onTouchMove={handleTouchEnd}
     >
       <div className="card-icon-row">
         <div className={`card-icon-box ${getIconClass()}`}>
           {getIcon()}
         </div>
-        <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+        <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
+          {onOpenItemSheet && (
+            <button 
+              className="card-more-btn" 
+              onClick={(e) => {
+                e.stopPropagation();
+                onOpenItemSheet(item, false);
+              }}
+              title="Options"
+            >
+              <MoreVertical size={16} />
+            </button>
+          )}
           {onToggleFavorite && (
             <button 
               className={`card-favorite-btn ${item.favorite === 1 ? 'active' : ''}`}
