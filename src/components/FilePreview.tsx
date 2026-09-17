@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { X, ExternalLink, Download, Edit2, Check, Copy } from 'lucide-react';
+import { X, ExternalLink, Download, Edit2, Check, Copy, Loader2 } from 'lucide-react';
 import { API_BASE_URL } from '../config';
+import { downloadDocument } from '../utils/download';
 
 interface FilePreviewProps {
   document: any;
@@ -17,8 +18,16 @@ export const FilePreview: React.FC<FilePreviewProps> = ({
   const [isEditing, setIsEditing] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [isCopied, setIsCopied] = useState(false);
+  const [isDownloading, setIsDownloading] = useState(false);
   const [textContent, setTextContent] = useState<string | null>(null);
   const [isLoadingText, setIsLoadingText] = useState(false);
+
+  const handleDownloadClick = async () => {
+    if (isDownloading) return;
+    setIsDownloading(true);
+    await downloadDocument(getMediaUrl(), doc.name);
+    setIsDownloading(false);
+  };
 
   const isTextOrMd = 
     doc.mime_type?.startsWith('text/') || 
@@ -120,18 +129,34 @@ export const FilePreview: React.FC<FilePreviewProps> = ({
         );
       case 'pdf':
         return (
-          <object 
-            className="preview-pdf" 
-            data={`${getMediaUrl()}#toolbar=0`} 
-            type="application/pdf"
-          >
-            <div style={{ textAlign: 'center', padding: '40px' }}>
-              <p>Unable to preview PDF directly in your browser.</p>
-              <a href={getMediaUrl()} className="btn btn-primary" style={{ marginTop: '16px' }} download>
-                Download PDF to View
-              </a>
+          <div style={{ width: '100%', display: 'flex', flexDirection: 'column' }}>
+            <div className="preview-toolbar">
+              <button 
+                type="button" 
+                className="preview-toolbar-btn" 
+                onClick={() => window.open(getMediaUrl(), '_blank')}
+                title="Open PDF in new tab"
+              >
+                <ExternalLink size={14} />
+                <span>Open in Tab</span>
+              </button>
+              <button 
+                type="button" 
+                className="preview-toolbar-btn" 
+                onClick={handleDownloadClick}
+                disabled={isDownloading}
+                title="Download PDF file"
+              >
+                {isDownloading ? <Loader2 size={14} className="spin-icon" /> : <Download size={14} />}
+                <span>{isDownloading ? 'Downloading...' : 'Download'}</span>
+              </button>
             </div>
-          </object>
+            <iframe 
+              className="preview-pdf-frame" 
+              src={`${getMediaUrl()}#toolbar=1`} 
+              title={doc.name}
+            />
+          </div>
         );
       case 'link':
         return (
@@ -159,9 +184,16 @@ export const FilePreview: React.FC<FilePreviewProps> = ({
         return (
           <div style={{ textAlign: 'center', padding: '40px' }}>
             <p>No preview helper configured for this format.</p>
-            <a href={getMediaUrl()} className="btn btn-primary" style={{ marginTop: '16px' }} download>
-              Download File
-            </a>
+            <button 
+              type="button" 
+              onClick={handleDownloadClick} 
+              className="btn btn-primary" 
+              style={{ marginTop: '16px' }}
+              disabled={isDownloading}
+            >
+              {isDownloading ? <Loader2 size={16} className="spin-icon" /> : <Download size={16} />}
+              <span>{isDownloading ? 'Downloading...' : 'Download File'}</span>
+            </button>
           </div>
         );
     }
@@ -181,14 +213,15 @@ export const FilePreview: React.FC<FilePreviewProps> = ({
           </div>
           <div style={{ display: 'flex', gap: '8px' }}>
             {doc.type !== 'link' && (
-              <a 
-                href={`${getMediaUrl()}?download=true`} 
+              <button 
+                type="button"
                 className="card-action-btn" 
-                title="Download"
-                download
+                onClick={handleDownloadClick}
+                title={isDownloading ? "Downloading file..." : "Download"}
+                disabled={isDownloading}
               >
-                <Download size={20} />
-              </a>
+                {isDownloading ? <Loader2 size={18} className="spin-icon" /> : <Download size={18} />}
+              </button>
             )}
             <button className="modal-close" onClick={onClose}>
               <X size={24} />
