@@ -306,7 +306,6 @@ export const MobileSearchModal: React.FC<MobileSearchModalProps> = ({
                 onClick={() => {
                   hapticLight();
                   onSelectDocument(doc);
-                  onClose();
                 }}
               >
                 <div className={`card-icon-box icon-${doc.type || 'other'}`} style={{ width: '38px', height: '38px', flexShrink: 0 }}>
