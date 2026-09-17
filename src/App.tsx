@@ -14,6 +14,7 @@ import { MobileSearchModal } from './components/MobileSearchModal';
 import { MobileBottomBar } from './components/MobileBottomBar';
 import { MobileActionSheet } from './components/MobileActionSheet';
 import { MobileItemSheet } from './components/MobileItemSheet';
+import { ShareTargetModal } from './components/ShareTargetModal';
 import { downloadDocument } from './utils/download';
 import { hapticLight, hapticSuccess, hapticWarning } from './utils/haptics';
 import { usePWA } from './hooks/usePWA';
@@ -225,6 +226,12 @@ export default function App() {
     isOpen: boolean;
     item: any;
     isFolder: boolean;
+  } | null>(null);
+
+  // Incoming OS Share Target State (allows selecting destination folder)
+  const [incomingShare, setIncomingShare] = useState<{
+    files: File[];
+    link?: { url: string; title: string } | null;
   } | null>(null);
 
   // Pull-to-refresh state
@@ -568,16 +575,14 @@ export default function App() {
 
           if (incomingFiles.length > 0) {
             hapticSuccess();
-            addToast(`Received ${incomingFiles.length} item(s) from share sheet`, 'success');
-            await handleUploadFiles(incomingFiles, currentFolderId);
+            setIncomingShare({ files: incomingFiles, link: null });
           }
         } else if (meta.sharedUrl || meta.text) {
           await cache.delete('/shared-meta');
           const targetLink = meta.sharedUrl || meta.text;
           if (targetLink && targetLink.startsWith('http')) {
             hapticSuccess();
-            addToast('Received shared link from share sheet', 'success');
-            await handleSaveLink(targetLink, meta.title || '', currentFolderId);
+            setIncomingShare({ files: [], link: { url: targetLink, title: meta.title || '' } });
           }
         }
       } catch (err) {
@@ -1046,6 +1051,25 @@ export default function App() {
           onClose={handleCloseShare}
           onGenerateShareLink={handleGenerateShareLink}
           onAddToast={addToast}
+        />
+      )}
+
+      {/* OS Share Sheet Target Modal (Allows Selecting Destination Folder) */}
+      {incomingShare && (
+        <ShareTargetModal
+          isOpen={!!incomingShare}
+          sharedFiles={incomingShare.files}
+          sharedLink={incomingShare.link}
+          initialFolderId={currentFolderId}
+          onClose={() => setIncomingShare(null)}
+          onConfirmUpload={async (files, targetFolderId) => {
+            await handleUploadFiles(files, targetFolderId);
+            setIncomingShare(null);
+          }}
+          onConfirmSaveLink={async (url, desc, targetFolderId) => {
+            await handleSaveLink(url, desc, targetFolderId);
+            setIncomingShare(null);
+          }}
         />
       )}
     </div>
