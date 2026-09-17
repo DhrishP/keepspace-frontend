@@ -493,7 +493,7 @@ export default function App() {
   };
 
   // Upload local files handler
-  const handleUploadFiles = async (files: FileList, parentId?: string | null) => {
+  const handleUploadFiles = async (files: FileList | File[], parentId?: string | null) => {
     let successCount = 0;
     let failCount = 0;
     
@@ -535,6 +535,58 @@ export default function App() {
     fetchData({ silent: true });
     fetchStats();
   };
+
+  // Check for incoming shared photos/files from OS Share Sheet (Web Share Target API)
+  useEffect(() => {
+    const processIncomingShareTarget = async () => {
+      if (!('caches' in window) || !isAuthenticated) return;
+      try {
+        const cache = await caches.open('keepspace-shared-payload');
+        const metaRes = await cache.match('/shared-meta');
+        if (!metaRes) return;
+
+        const meta = await metaRes.json();
+        // Ignore stale payloads older than 3 minutes
+        if (!meta || Date.now() - meta.timestamp > 180000) {
+          await cache.delete('/shared-meta');
+          return;
+        }
+
+        if (meta.count > 0) {
+          const incomingFiles: File[] = [];
+          for (let i = 0; i < meta.count; i++) {
+            const fileRes = await cache.match(`/shared-file-${i}`);
+            if (fileRes) {
+              const blob = await fileRes.blob();
+              const fileName = decodeURIComponent(fileRes.headers.get('x-filename') || `shared_photo_${Date.now()}.jpg`);
+              const mimeType = fileRes.headers.get('content-type') || blob.type || 'image/jpeg';
+              incomingFiles.push(new File([blob], fileName, { type: mimeType }));
+              await cache.delete(`/shared-file-${i}`);
+            }
+          }
+          await cache.delete('/shared-meta');
+
+          if (incomingFiles.length > 0) {
+            hapticSuccess();
+            addToast(`Received ${incomingFiles.length} item(s) from share sheet`, 'success');
+            await handleUploadFiles(incomingFiles, currentFolderId);
+          }
+        } else if (meta.sharedUrl || meta.text) {
+          await cache.delete('/shared-meta');
+          const targetLink = meta.sharedUrl || meta.text;
+          if (targetLink && targetLink.startsWith('http')) {
+            hapticSuccess();
+            addToast('Received shared link from share sheet', 'success');
+            await handleSaveLink(targetLink, meta.title || '', currentFolderId);
+          }
+        }
+      } catch (err) {
+        console.error("Failed to read shared target payload:", err);
+      }
+    };
+
+    processIncomingShareTarget();
+  }, [isAuthenticated, currentFolderId]);
 
   // Delete file or folder handler (Custom ConfirmModal instead of window.confirm)
   const handleDelete = (id: string, isFolder: boolean) => {
@@ -750,7 +802,6 @@ export default function App() {
         fetchStats(),
         fetchSidebarFolders()
       ]);
-      addToast("Vault refreshed", "success");
     } else {
       setPullDistance(0);
       setIsPulling(false);
