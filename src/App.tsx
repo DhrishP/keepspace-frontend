@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Search, Sun, Moon, Menu, X } from 'lucide-react';
 import { Sidebar } from './components/Sidebar';
 import { Login } from './components/Login';
@@ -543,55 +543,105 @@ export default function App() {
     fetchStats();
   };
 
-  // Check for incoming shared photos/files from OS Share Sheet (Web Share Target API)
+  // Process incoming shared payload from Web Share Target API
+  const processIncomingShareTarget = useCallback(async () => {
+    if (!('caches' in window)) return;
+    try {
+      const cache = await caches.open('keepspace-shared-payload');
+      const metaRes = await cache.match('/shared-meta');
+      if (!metaRes) return;
+
+      const meta = await metaRes.json();
+      // Ignore stale payloads older than 10 minutes
+      if (!meta || Date.now() - meta.timestamp > 600000) {
+        await cache.delete('/shared-meta');
+        return;
+      }
+
+      // If user is locked/unauthenticated, do not delete payload yet! Keep it for post-unlock.
+      if (!isAuthenticated) {
+        return;
+      }
+
+      if (meta.count > 0) {
+        const incomingFiles: File[] = [];
+        for (let i = 0; i < meta.count; i++) {
+          const fileRes = await cache.match(`/shared-file-${i}`);
+          if (fileRes) {
+            const blob = await fileRes.blob();
+            const fileName = decodeURIComponent(fileRes.headers.get('x-filename') || `shared_photo_${Date.now()}.jpg`);
+            const mimeType = fileRes.headers.get('content-type') || blob.type || 'image/jpeg';
+            incomingFiles.push(new File([blob], fileName, { type: mimeType }));
+            await cache.delete(`/shared-file-${i}`);
+          }
+        }
+        await cache.delete('/shared-meta');
+
+        if (incomingFiles.length > 0) {
+          hapticSuccess();
+          setIncomingShare({ files: incomingFiles, link: null });
+        }
+      } else if (meta.sharedUrl || meta.text) {
+        await cache.delete('/shared-meta');
+        const targetLink = meta.sharedUrl || meta.text;
+        if (targetLink && targetLink.startsWith('http')) {
+          hapticSuccess();
+          setIncomingShare({ files: [], link: { url: targetLink, title: meta.title || '' } });
+        }
+      }
+    } catch (err) {
+      console.error("Failed to read shared target payload:", err);
+    }
+  }, [isAuthenticated]);
+
+  // Check on mount, auth change, and folder navigation
   useEffect(() => {
-    const processIncomingShareTarget = async () => {
-      if (!('caches' in window) || !isAuthenticated) return;
-      try {
-        const cache = await caches.open('keepspace-shared-payload');
-        const metaRes = await cache.match('/shared-meta');
-        if (!metaRes) return;
+    processIncomingShareTarget();
+  }, [isAuthenticated, currentFolderId, processIncomingShareTarget]);
 
-        const meta = await metaRes.json();
-        // Ignore stale payloads older than 3 minutes
-        if (!meta || Date.now() - meta.timestamp > 180000) {
-          await cache.delete('/shared-meta');
-          return;
-        }
-
-        if (meta.count > 0) {
-          const incomingFiles: File[] = [];
-          for (let i = 0; i < meta.count; i++) {
-            const fileRes = await cache.match(`/shared-file-${i}`);
-            if (fileRes) {
-              const blob = await fileRes.blob();
-              const fileName = decodeURIComponent(fileRes.headers.get('x-filename') || `shared_photo_${Date.now()}.jpg`);
-              const mimeType = fileRes.headers.get('content-type') || blob.type || 'image/jpeg';
-              incomingFiles.push(new File([blob], fileName, { type: mimeType }));
-              await cache.delete(`/shared-file-${i}`);
-            }
-          }
-          await cache.delete('/shared-meta');
-
-          if (incomingFiles.length > 0) {
-            hapticSuccess();
-            setIncomingShare({ files: incomingFiles, link: null });
-          }
-        } else if (meta.sharedUrl || meta.text) {
-          await cache.delete('/shared-meta');
-          const targetLink = meta.sharedUrl || meta.text;
-          if (targetLink && targetLink.startsWith('http')) {
-            hapticSuccess();
-            setIncomingShare({ files: [], link: { url: targetLink, title: meta.title || '' } });
-          }
-        }
-      } catch (err) {
-        console.error("Failed to read shared target payload:", err);
+  // Listen to Window Focus and Visibility Change (app brought from background to foreground on Share)
+  useEffect(() => {
+    const handleFocus = () => {
+      processIncomingShareTarget();
+    };
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        processIncomingShareTarget();
       }
     };
+    window.addEventListener('focus', handleFocus);
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    return () => {
+      window.removeEventListener('focus', handleFocus);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
+  }, [processIncomingShareTarget]);
 
+  // Listen to Service Worker message broadcast
+  useEffect(() => {
+    if (!('serviceWorker' in navigator)) return;
+    const handleMessage = (event: MessageEvent) => {
+      if (event.data && event.data.type === 'KEEP_SPACE_SHARED_FILES') {
+        processIncomingShareTarget();
+      }
+    };
+    navigator.serviceWorker.addEventListener('message', handleMessage);
+    return () => {
+      navigator.serviceWorker.removeEventListener('message', handleMessage);
+    };
+  }, [processIncomingShareTarget]);
+
+  // Listen to URL query params (?shared=...)
+  useEffect(() => {
+    if (!window.location.search.includes('shared')) return;
     processIncomingShareTarget();
-  }, [isAuthenticated, currentFolderId]);
+    const t1 = setTimeout(processIncomingShareTarget, 300);
+    const t2 = setTimeout(processIncomingShareTarget, 800);
+    return () => {
+      clearTimeout(t1);
+      clearTimeout(t2);
+    };
+  }, [processIncomingShareTarget]);
 
   // Delete file or folder handler (Custom ConfirmModal instead of window.confirm)
   const handleDelete = (id: string, isFolder: boolean) => {
