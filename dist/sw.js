@@ -1,9 +1,11 @@
-const CACHE_NAME = 'keepspace-v2';
+const CACHE_NAME = 'keepspace-v3';
 const ASSETS_TO_CACHE = [
   '/',
   '/index.html',
   '/manifest.json',
-  '/logo.svg'
+  '/logo.svg',
+  '/icon-192.png',
+  '/icon-512.png'
 ];
 
 // Install Service Worker
