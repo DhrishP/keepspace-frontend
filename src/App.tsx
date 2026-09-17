@@ -634,7 +634,8 @@ export default function App() {
   };
 
   // Handler to open upload panel or prompt for folder creation fast
-  const handleOpenUpload = (tab: 'file' | 'folder' | 'link') => {
+  const handleOpenUpload = (tab: 'file' | 'folder' | 'link', targetParentId?: string | null) => {
+    const parentId = targetParentId !== undefined ? targetParentId : currentFolderId;
     if (tab === 'folder') {
       setRenameModal({
         isOpen: true,
@@ -643,12 +644,15 @@ export default function App() {
         currentName: '',
         onSave: async (name: string) => {
           if (name && name.trim()) {
-            await handleCreateFolder(name.trim());
+            await handleCreateFolder(name.trim(), parentId);
           }
           setRenameModal(null);
         }
       });
     } else {
+      if (parentId) {
+        setLastUploadFolderId(parentId);
+      }
       setActiveUploadTab(tab);
     }
   };
@@ -836,12 +840,13 @@ export default function App() {
       <MobileActionSheet
         isOpen={mobileActionSheetOpen}
         onClose={() => setMobileActionSheetOpen(false)}
-        onUploadFiles={async (files) => {
-          await handleUploadFiles(files);
+        onUploadFiles={async (files, parentId) => {
+          await handleUploadFiles(files, parentId);
         }}
-        onOpenUploadModal={(tab) => {
-          handleOpenUpload(tab);
+        onOpenUploadModal={(tab, parentId) => {
+          handleOpenUpload(tab, parentId);
         }}
+        currentFolderId={currentFolderId}
         currentFolderName={folderName}
       />
 
