@@ -1,12 +1,14 @@
-import React, { useRef, useEffect } from 'react';
-import { Camera, UploadCloud, FolderPlus, Link2, X } from 'lucide-react';
+import React, { useState, useRef, useEffect } from 'react';
+import { Camera, UploadCloud, FolderPlus, Link2, Folder, X, ChevronDown } from 'lucide-react';
+import { API_BASE_URL } from '../config';
 import { hapticLight, hapticSelection } from '../utils/haptics';
 
 interface MobileActionSheetProps {
   isOpen: boolean;
   onClose: () => void;
-  onUploadFiles: (files: FileList) => Promise<void>;
-  onOpenUploadModal: (tab: 'file' | 'folder' | 'link') => void;
+  onUploadFiles: (files: FileList, parentId: string | null) => Promise<void>;
+  onOpenUploadModal: (tab: 'file' | 'folder' | 'link', parentId?: string | null) => void;
+  currentFolderId: string | null;
   currentFolderName: string | null;
 }
 
@@ -15,19 +17,30 @@ export const MobileActionSheet: React.FC<MobileActionSheetProps> = ({
   onClose,
   onUploadFiles,
   onOpenUploadModal,
+  currentFolderId,
   currentFolderName,
 }) => {
   const cameraInputRef = useRef<HTMLInputElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const [destinationFolderId, setDestinationFolderId] = useState<string>(currentFolderId || '');
+  const [allFolders, setAllFolders] = useState<{ id: string; name: string }[]>([]);
 
   useEffect(() => {
     if (!isOpen) return;
+    setDestinationFolderId(currentFolderId || '');
+
+    // Fetch all folders for destination selection
+    fetch(`${API_BASE_URL}/api/all-folders`)
+      .then((res) => res.json())
+      .then((data) => setAllFolders(data || []))
+      .catch((err) => console.error("Error fetching folders:", err));
+
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') onClose();
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [isOpen, onClose]);
+  }, [isOpen, currentFolderId, onClose]);
 
   if (!isOpen) return null;
 
@@ -35,7 +48,7 @@ export const MobileActionSheet: React.FC<MobileActionSheetProps> = ({
     if (e.target.files && e.target.files.length > 0) {
       hapticLight();
       onClose();
-      await onUploadFiles(e.target.files);
+      await onUploadFiles(e.target.files, destinationFolderId || null);
     }
   };
 
@@ -43,7 +56,7 @@ export const MobileActionSheet: React.FC<MobileActionSheetProps> = ({
     if (e.target.files && e.target.files.length > 0) {
       hapticLight();
       onClose();
-      await onUploadFiles(e.target.files);
+      await onUploadFiles(e.target.files, destinationFolderId || null);
     }
   };
 
@@ -72,13 +85,37 @@ export const MobileActionSheet: React.FC<MobileActionSheetProps> = ({
         <div className="mobile-sheet-header">
           <div>
             <h3 className="mobile-sheet-title">Add to Vault</h3>
-            <p className="mobile-sheet-subtitle">
-              {currentFolderName ? `Destination: ${currentFolderName}` : 'Destination: Vault Root'}
-            </p>
+            <p className="mobile-sheet-subtitle">Choose action and destination</p>
           </div>
           <button className="mobile-sheet-close-btn" onClick={onClose} aria-label="Close sheet">
             <X size={18} />
           </button>
+        </div>
+
+        {/* Destination Folder Selector */}
+        <div className="mobile-destination-box">
+          <div className="mobile-destination-label">
+            <Folder size={16} className="mobile-dest-icon" />
+            <span>Upload into:</span>
+          </div>
+          <div className="mobile-destination-select-wrapper">
+            <select
+              className="mobile-destination-select"
+              value={destinationFolderId}
+              onChange={(e) => {
+                hapticLight();
+                setDestinationFolderId(e.target.value);
+              }}
+            >
+              <option value="">📁 Main Vault (Root)</option>
+              {allFolders.map((folder) => (
+                <option key={folder.id} value={folder.id}>
+                  📁 {folder.name}
+                </option>
+              ))}
+            </select>
+            <ChevronDown size={14} className="mobile-destination-arrow" />
+          </div>
         </div>
 
         <div className="mobile-action-grid">
@@ -125,7 +162,7 @@ export const MobileActionSheet: React.FC<MobileActionSheetProps> = ({
             onClick={() => {
               hapticLight();
               onClose();
-              onOpenUploadModal('folder');
+              onOpenUploadModal('folder', destinationFolderId || null);
             }}
           >
             <div className="mobile-action-icon folder">
@@ -144,7 +181,7 @@ export const MobileActionSheet: React.FC<MobileActionSheetProps> = ({
             onClick={() => {
               hapticLight();
               onClose();
-              onOpenUploadModal('link');
+              onOpenUploadModal('link', destinationFolderId || null);
             }}
           >
             <div className="mobile-action-icon link">
