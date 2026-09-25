@@ -20,6 +20,7 @@ import { hapticLight, hapticSuccess, hapticWarning } from './utils/haptics';
 import { usePWA } from './hooks/usePWA';
 import { API_BASE_URL } from './config';
 import { saveLocalVault, getLocalVault, saveLocalStats, getLocalStats } from './utils/localDb';
+import { compressImageIfNeeded } from './utils/imageCompressor';
 
 export default function App() {
   const { isOnline, canInstall, triggerInstall } = usePWA();
@@ -530,7 +531,13 @@ export default function App() {
     const targetParentId = parentId !== undefined ? parentId : currentFolderId;
 
     for (let i = 0; i < files.length; i++) {
-      const file = files[i];
+      let file = files[i];
+      
+      // High-fidelity client compression for large photos (>2MB), preserving detail
+      if (file.type && file.type.startsWith('image/') && file.size > 2 * 1024 * 1024) {
+        file = await compressImageIfNeeded(file);
+      }
+
       const formData = new FormData();
       formData.append('file', file);
       if (targetParentId) {
