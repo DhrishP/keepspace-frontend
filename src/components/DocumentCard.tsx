@@ -11,14 +11,15 @@ import {
   Heart, 
   Download, 
   Trash2, 
-  Eye,
-  ExternalLink,
-  Share2,
-  Edit3,
-  Loader2,
-  MoreVertical
+  Eye, 
+  ExternalLink, 
+  Share2, 
+  Edit3, 
+  Loader2, 
+  MoreVertical 
 } from 'lucide-react';
 import { hapticSelection } from '../utils/haptics';
+import { renderFileIcon, getFileIconClass, getFileCategory } from '../utils/fileType';
 
 interface DocumentCardProps {
   item: any; // document or folder
@@ -245,25 +246,13 @@ export const DocumentCard: React.FC<DocumentCardProps> = ({
     );
   }
 
-  // Get matching icon based on type
+  // Get matching icon based on type and extension
   const getIcon = () => {
-    switch (item.type) {
-      case 'pdf': return <FileText size={24} />;
-      case 'image': return <ImageIcon size={24} />;
-      case 'video': return <VideoIcon size={24} />;
-      case 'link': return <LinkIcon size={24} />;
-      default: return <File size={24} />;
-    }
+    return renderFileIcon(item.name, item.mime_type, isFolder ? 'folder' : item.type, 24);
   };
 
   const getIconClass = () => {
-    switch (item.type) {
-      case 'pdf': return 'icon-pdf';
-      case 'image': return 'icon-image';
-      case 'video': return 'icon-video';
-      case 'link': return 'icon-link';
-      default: return 'icon-other';
-    }
+    return getFileIconClass(item.name, item.mime_type, isFolder ? 'folder' : item.type);
   };
 
   return (
@@ -397,7 +386,7 @@ export const DocumentCard: React.FC<DocumentCardProps> = ({
         )}
 
         <div className="card-meta" style={{ marginTop: '4px' }}>
-          <span>{item.type.toUpperCase()}</span>
+          <span>{getFileCategory(item.name, item.mime_type, item.type).toUpperCase()}</span>
           {item.size !== null && (
             <>
               <span className="card-meta-dot"></span>

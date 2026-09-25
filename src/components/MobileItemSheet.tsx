@@ -16,6 +16,7 @@ import {
   X 
 } from 'lucide-react';
 import { hapticLight, hapticWarning, hapticSuccess } from '../utils/haptics';
+import { renderFileIcon, getFileIconClass, getFileCategory } from '../utils/fileType';
 
 interface MobileItemSheetProps {
   isOpen: boolean;
@@ -57,14 +58,7 @@ export const MobileItemSheet: React.FC<MobileItemSheetProps> = ({
   if (!isOpen || !item) return null;
 
   const getIcon = () => {
-    if (isFolder) return <Folder size={22} />;
-    switch (item.type) {
-      case 'pdf': return <FileText size={22} />;
-      case 'image': return <ImageIcon size={22} />;
-      case 'video': return <VideoIcon size={22} />;
-      case 'link': return <LinkIcon size={22} />;
-      default: return <File size={22} />;
-    }
+    return renderFileIcon(item.name, item.mime_type, isFolder ? 'folder' : item.type, 22);
   };
 
   const formatSize = (bytes: number | null) => {
@@ -82,7 +76,7 @@ export const MobileItemSheet: React.FC<MobileItemSheetProps> = ({
 
         {/* Item Summary Header */}
         <div className="mobile-item-sheet-header">
-          <div className={`card-icon-box icon-${isFolder ? 'folder' : (item.type || 'other')}`} style={{ width: '40px', height: '40px', flexShrink: 0 }}>
+          <div className={`card-icon-box ${getFileIconClass(item.name, item.mime_type, isFolder ? 'folder' : item.type)}`} style={{ width: '40px', height: '40px', flexShrink: 0 }}>
             {getIcon()}
           </div>
           <div className="mobile-item-sheet-info">
@@ -90,7 +84,7 @@ export const MobileItemSheet: React.FC<MobileItemSheetProps> = ({
             <div className="mobile-item-sheet-meta">
               {isFolder ? 'Directory' : (
                 <>
-                  <span style={{ textTransform: 'uppercase' }}>{item.type}</span>
+                  <span>{getFileCategory(item.name, item.mime_type, item.type).toUpperCase()}</span>
                   {item.size ? <> • <span>{formatSize(item.size)}</span></> : null}
                 </>
               )}

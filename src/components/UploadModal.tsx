@@ -2,6 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { X, Upload, FolderPlus, Link2, File, FileText, Image as ImageIcon, Trash2, Plus, Loader2 } from 'lucide-react';
 import { API_BASE_URL } from '../config';
 import { FolderWaveSelector } from './FolderWaveSelector';
+import { renderFileIcon, getFileIconClass } from '../utils/fileType';
 
 interface UploadModalProps {
   initialTab: 'file' | 'folder' | 'link';
@@ -270,8 +271,8 @@ export const UploadModal: React.FC<UploadModalProps> = ({
                 }}>
                   {stagedFiles.map((file, idx) => (
                     <div key={idx} style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                      <div className="card-icon-box" style={{ width: '38px', height: '38px', flexShrink: 0 }}>
-                        {file.type.startsWith('image/') ? <ImageIcon size={20} /> : <FileText size={20} />}
+                      <div className={`card-icon-box ${getFileIconClass(file.name, file.type)}`} style={{ width: '38px', height: '38px', flexShrink: 0 }}>
+                        {renderFileIcon(file.name, file.type, '', 20)}
                       </div>
                       <div style={{ flex: 1, minWidth: 0 }}>
                         <input
