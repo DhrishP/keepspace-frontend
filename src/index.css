@@ -506,9 +506,41 @@ body {
 
 .card-item.drag-over {
   border-color: var(--accent-primary) !important;
-  background: rgba(255, 255, 255, 0.03) !important;
-  transform: scale(1.02);
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+  background: var(--accent-surface) !important;
+  transform: scale(1.03);
+  box-shadow: 0 8px 24px rgba(99, 102, 241, 0.25), 0 0 0 2px var(--accent-primary) !important;
+  transition: all 0.15s ease-out;
+}
+
+/* Breadcrumbs Drag Target */
+.breadcrumb-item.breadcrumb-drop-active {
+  background: var(--accent-surface) !important;
+  color: var(--accent-primary) !important;
+  border-radius: var(--border-radius-sm);
+  padding: 3px 10px;
+  box-shadow: 0 0 0 2px var(--accent-primary), 0 4px 12px rgba(99, 102, 241, 0.2);
+  transform: scale(1.05);
+  font-weight: 600;
+  transition: all 0.15s ease-out;
+}
+
+/* Sidebar Drag Targets */
+.folder-tree-node.sidebar-drop-active {
+  background: var(--accent-surface) !important;
+  color: var(--accent-primary) !important;
+  border-left: 3px solid var(--accent-primary) !important;
+  box-shadow: inset 0 0 16px rgba(99, 102, 241, 0.15), 0 2px 8px rgba(99, 102, 241, 0.2) !important;
+  font-weight: 600 !important;
+  transform: translateX(4px);
+  transition: all 0.15s ease-out;
+}
+
+.nav-item.sidebar-drop-active {
+  background: var(--accent-surface) !important;
+  color: var(--accent-primary) !important;
+  border: 1px dashed var(--accent-primary) !important;
+  box-shadow: 0 0 12px rgba(99, 102, 241, 0.2) !important;
+  font-weight: 600 !important;
 }
 
 .content-pane.drag-over-bg {

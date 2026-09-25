@@ -1143,6 +1143,8 @@ export default function App() {
         triggerInstall={triggerInstall}
         stats={stats}
         onLogout={handleLogout}
+        onMoveItem={handleMoveItem}
+        onUploadFiles={handleUploadFiles}
       />
 
       {/* Sidebar Overlay backdrop for mobile */}
@@ -1223,6 +1225,8 @@ export default function App() {
         <Breadcrumbs 
           breadcrumbs={breadcrumbs}
           setCurrentFolderId={handleNavigateFolder}
+          onMoveItem={handleMoveItem}
+          onUploadFiles={handleUploadFiles}
         />
 
         {/* Content Viewer Grid */}

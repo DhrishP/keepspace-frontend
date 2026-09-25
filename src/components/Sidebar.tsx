@@ -33,6 +33,8 @@ interface SidebarProps {
     byType: { type: string; count: number; total_size: number | null }[];
   } | null;
   onLogout: () => void;
+  onMoveItem?: (itemId: string, isFolderItem: boolean, targetFolderId: string | null) => void;
+  onUploadFiles?: (files: FileList | File[], parentId?: string | null) => Promise<void>;
 }
 
 export const Sidebar: React.FC<SidebarProps> = ({
@@ -47,8 +49,38 @@ export const Sidebar: React.FC<SidebarProps> = ({
   canInstall,
   triggerInstall,
   stats,
-  onLogout
+  onLogout,
+  onMoveItem,
+  onUploadFiles,
 }) => {
+  const [dragOverTargetId, setDragOverTargetId] = React.useState<string | null>(null);
+
+  const handleDropOnTarget = (e: React.DragEvent, targetId: string | null) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setDragOverTargetId(null);
+
+    // 1. External files from Mac Finder / desktop
+    if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+      if (onUploadFiles) {
+        onUploadFiles(e.dataTransfer.files, targetId);
+      }
+      return;
+    }
+
+    // 2. Internal file or folder card move
+    try {
+      const rawData = e.dataTransfer.getData('text/plain');
+      if (!rawData) return;
+      const data = JSON.parse(rawData);
+      if (data.id === targetId && data.isFolder) return;
+      if (onMoveItem) {
+        onMoveItem(data.id, data.isFolder, targetId);
+      }
+    } catch (err) {
+      console.error(err);
+    }
+  };
   // Compute storage used (1 GB capacity)
   const totalSizeBytes = stats?.byType.reduce((acc, curr) => acc + (curr.total_size || 0), 0) || 0;
   const storageLimitBytes = 1024 * 1024 * 1024; // 1 GB limit
@@ -93,14 +125,32 @@ export const Sidebar: React.FC<SidebarProps> = ({
       <div className="sidebar-nav">
         {navItems.map((item) => {
           const Icon = item.icon;
+          const isAllFiles = item.id === 'all';
+          const isDropOverRoot = dragOverTargetId === 'root' && isAllFiles;
+
           return (
             <button
               key={item.id}
-              className={`nav-item ${currentTab === item.id && !currentFolderId ? 'active' : ''}`}
+              className={`nav-item ${currentTab === item.id && !currentFolderId ? 'active' : ''} ${isDropOverRoot ? 'sidebar-drop-active' : ''}`}
               onClick={() => {
                 setCurrentFolderId(null);
                 setCurrentTab(item.id);
               }}
+              onDragOver={isAllFiles ? (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                e.dataTransfer.dropEffect = 'copy';
+              } : undefined}
+              onDragEnter={isAllFiles ? (e) => {
+                e.preventDefault();
+                setDragOverTargetId('root');
+              } : undefined}
+              onDragLeave={isAllFiles ? (e) => {
+                e.preventDefault();
+                if (dragOverTargetId === 'root') setDragOverTargetId(null);
+              } : undefined}
+              onDrop={isAllFiles ? (e) => handleDropOnTarget(e, null) : undefined}
+              title={isAllFiles ? "Drop here to move or upload to Root directory" : undefined}
             >
               <Icon size={18} />
               <span>{item.label}</span>
@@ -121,25 +171,43 @@ export const Sidebar: React.FC<SidebarProps> = ({
               No directories created
             </div>
           ) : (
-            folders.map((folder) => (
-              <div
-                key={folder.id}
-                className={`folder-tree-node ${currentFolderId === folder.id ? 'active' : ''}`}
-                onClick={() => {
-                  setCurrentFolderId(folder.id);
-                  setCurrentTab('all');
-                }}
-                style={{
-                  fontWeight: currentFolderId === folder.id ? '600' : 'normal',
-                  color: currentFolderId === folder.id ? 'var(--text-primary)' : 'var(--text-secondary)'
-                }}
-              >
-                {currentFolderId === folder.id ? <FolderOpen size={14} className="icon-folder" /> : <Folder size={14} className="icon-folder" />}
-                <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                  {folder.name}
-                </span>
-              </div>
-            ))
+            folders.map((folder) => {
+              const isOverFolder = dragOverTargetId === folder.id;
+              return (
+                <div
+                  key={folder.id}
+                  className={`folder-tree-node ${currentFolderId === folder.id ? 'active' : ''} ${isOverFolder ? 'sidebar-drop-active' : ''}`}
+                  onClick={() => {
+                    setCurrentFolderId(folder.id);
+                    setCurrentTab('all');
+                  }}
+                  onDragOver={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    e.dataTransfer.dropEffect = 'copy';
+                  }}
+                  onDragEnter={(e) => {
+                    e.preventDefault();
+                    setDragOverTargetId(folder.id);
+                  }}
+                  onDragLeave={(e) => {
+                    e.preventDefault();
+                    if (dragOverTargetId === folder.id) setDragOverTargetId(null);
+                  }}
+                  onDrop={(e) => handleDropOnTarget(e, folder.id)}
+                  title={`Drop here to move or upload to "${folder.name}"`}
+                  style={{
+                    fontWeight: currentFolderId === folder.id ? '600' : 'normal',
+                    color: currentFolderId === folder.id ? 'var(--text-primary)' : 'var(--text-secondary)'
+                  }}
+                >
+                  {currentFolderId === folder.id ? <FolderOpen size={14} className="icon-folder" /> : <Folder size={14} className="icon-folder" />}
+                  <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    {folder.name}
+                  </span>
+                </div>
+              );
+            })
           )}
         </div>
 
