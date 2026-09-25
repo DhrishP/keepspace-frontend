@@ -299,7 +299,6 @@ export const MobileSearchModal: React.FC<MobileSearchModalProps> = ({
                   e.stopPropagation();
                   inputRef.current?.blur();
                   hapticLight();
-                  onClose();
                   onSelectFolder(folder.id);
                 }}
               >
@@ -325,7 +324,6 @@ export const MobileSearchModal: React.FC<MobileSearchModalProps> = ({
                   e.stopPropagation();
                   inputRef.current?.blur();
                   hapticLight();
-                  onClose();
                   onSelectDocument(doc);
                 }}
               >

@@ -48,13 +48,38 @@ export const DocumentCard: React.FC<DocumentCardProps> = ({
   const [isDragOver, setIsDragOver] = useState(false);
   const [isDownloading, setIsDownloading] = useState(false);
   const touchTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const touchStartPosRef = useRef<{ x: number; y: number } | null>(null);
 
-  const handleTouchStart = () => {
+  const handleTouchStart = (e: React.TouchEvent) => {
     if (!onOpenItemSheet) return;
+    const touch = e.touches[0];
+    if (!touch) return;
+
+    // Android edge gesture exclusion: touches near edges (< 45px or > width - 45px) are system back gestures
+    if (touch.clientX > window.innerWidth - 45 || touch.clientX < 45) {
+      return;
+    }
+
+    touchStartPosRef.current = { x: touch.clientX, y: touch.clientY };
+
     touchTimerRef.current = setTimeout(() => {
       hapticSelection();
       onOpenItemSheet(item, isFolder);
-    }, 450);
+    }, 600);
+  };
+
+  const handleTouchMove = (e: React.TouchEvent) => {
+    if (!touchTimerRef.current || !touchStartPosRef.current) return;
+    const touch = e.touches[0];
+    if (!touch) return;
+    const dx = Math.abs(touch.clientX - touchStartPosRef.current.x);
+    const dy = Math.abs(touch.clientY - touchStartPosRef.current.y);
+    if (dx > 10 || dy > 10) {
+      if (touchTimerRef.current) {
+        clearTimeout(touchTimerRef.current);
+        touchTimerRef.current = null;
+      }
+    }
   };
 
   const handleTouchEnd = () => {
@@ -62,6 +87,7 @@ export const DocumentCard: React.FC<DocumentCardProps> = ({
       clearTimeout(touchTimerRef.current);
       touchTimerRef.current = null;
     }
+    touchStartPosRef.current = null;
   };
 
   const handleDownloadClick = async (e: React.MouseEvent) => {
@@ -150,7 +176,8 @@ export const DocumentCard: React.FC<DocumentCardProps> = ({
         onDrop={handleDrop}
         onTouchStart={handleTouchStart}
         onTouchEnd={handleTouchEnd}
-        onTouchMove={handleTouchEnd}
+        onTouchMove={handleTouchMove}
+        onTouchCancel={handleTouchEnd}
       >
         <div className="card-icon-row">
           <div className="card-icon-box icon-folder">
@@ -234,7 +261,8 @@ export const DocumentCard: React.FC<DocumentCardProps> = ({
       onDragStart={handleDragStart}
       onTouchStart={handleTouchStart}
       onTouchEnd={handleTouchEnd}
-      onTouchMove={handleTouchEnd}
+      onTouchMove={handleTouchMove}
+      onTouchCancel={handleTouchEnd}
     >
       <div className="card-icon-row">
         <div className={`card-icon-box ${getIconClass()}`}>

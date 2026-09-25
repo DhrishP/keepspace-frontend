@@ -127,7 +127,6 @@ export default function App() {
       document.activeElement.blur();
     }
     searchInputRef.current?.blur();
-    setMobileSearchOpen(false);
     setPreviewDoc(doc);
     window.history.pushState({ modal: 'preview' }, '', '#preview');
   };
@@ -175,8 +174,8 @@ export default function App() {
       // If hash is #search, ensure search is visible
       if (isSearch) {
         setMobileSearchOpen(true);
-      } else if (!isShare) {
-        // If we backed out of search to dashboard, folder, or preview, close search
+      } else if (!isPreview && !isShare) {
+        // If we backed out of search to dashboard or folder, close search
         setMobileSearchOpen(false);
       }
 
