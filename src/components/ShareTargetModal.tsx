@@ -33,6 +33,9 @@ export const ShareTargetModal: React.FC<ShareTargetModalProps> = ({
   // Fetch available vault folders
   useEffect(() => {
     if (!isOpen) return;
+    if (document.activeElement instanceof HTMLElement) {
+      document.activeElement.blur();
+    }
 
     setFileNames(sharedFiles.map(f => f.name));
     setSharedLinkTitle(sharedLink?.title || '');

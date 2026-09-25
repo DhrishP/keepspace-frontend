@@ -92,6 +92,9 @@ export const UploadModal: React.FC<UploadModalProps> = ({
 
   // Fetch flat folders on modal load
   useEffect(() => {
+    if (document.activeElement instanceof HTMLElement) {
+      document.activeElement.blur();
+    }
     fetch(`${API_BASE_URL}/api/all-folders`)
       .then(res => res.json())
       .then(data => setAllFolders(data || []))
@@ -366,7 +369,6 @@ export const UploadModal: React.FC<UploadModalProps> = ({
                 onChange={(e) => setFolderName(e.target.value)}
                 required
                 disabled={isSubmitting}
-                autoFocus
               />
             </div>
             <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px' }}>
@@ -393,7 +395,6 @@ export const UploadModal: React.FC<UploadModalProps> = ({
                 onChange={(e) => setLinkUrl(e.target.value)}
                 required
                 disabled={isSubmitting}
-                autoFocus
               />
             </div>
             <div className="form-group">

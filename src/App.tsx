@@ -113,43 +113,54 @@ export default function App() {
     }
   };
 
-  const handleCloseSearch = () => {
+  const handleCloseSearch = useCallback(() => {
     if (document.activeElement instanceof HTMLElement) {
       document.activeElement.blur();
     }
+    searchInputRef.current?.blur();
     setMobileSearchOpen(false);
     if (window.location.hash.includes('search')) {
       window.history.back();
     }
-  };
+  }, []);
 
-  const handleOpenPreview = (doc: any) => {
+  const handleOpenPreview = useCallback((doc: any) => {
     if (document.activeElement instanceof HTMLElement) {
       document.activeElement.blur();
     }
     searchInputRef.current?.blur();
     setPreviewDoc(doc);
     window.history.pushState({ modal: 'preview' }, '', '#preview');
-  };
+  }, []);
 
-  const handleClosePreview = () => {
+  const handleClosePreview = useCallback(() => {
+    if (document.activeElement instanceof HTMLElement) {
+      document.activeElement.blur();
+    }
     setPreviewDoc(null);
     if (window.location.hash.includes('preview')) {
       window.history.back();
     }
-  };
+  }, []);
 
-  const handleOpenShare = (doc: any) => {
+  const handleOpenShare = useCallback((doc: any) => {
+    if (document.activeElement instanceof HTMLElement) {
+      document.activeElement.blur();
+    }
+    searchInputRef.current?.blur();
     setShareDoc(doc);
     window.history.pushState({ modal: 'share' }, '', '#share');
-  };
+  }, []);
 
-  const handleCloseShare = () => {
+  const handleCloseShare = useCallback(() => {
+    if (document.activeElement instanceof HTMLElement) {
+      document.activeElement.blur();
+    }
     setShareDoc(null);
     if (window.location.hash.includes('share')) {
       window.history.back();
     }
-  };
+  }, []);
 
   // Sync state from URL hash & handle browser Back/Forward / PWA Swipe Back
   useEffect(() => {
@@ -811,6 +822,10 @@ export default function App() {
 
   // Delete file or folder handler (Custom ConfirmModal instead of window.confirm)
   const handleDelete = (id: string, isFolder: boolean) => {
+    if (document.activeElement instanceof HTMLElement) {
+      document.activeElement.blur();
+    }
+    searchInputRef.current?.blur();
     setConfirmModal({
       isOpen: true,
       title: isFolder ? "Delete Directory" : "Delete Document",
@@ -844,6 +859,10 @@ export default function App() {
 
   // Rename file or folder handler (Custom RenameModal instead of window.prompt)
   const handleRename = (id: string, isFolder: boolean, currentName: string) => {
+    if (document.activeElement instanceof HTMLElement) {
+      document.activeElement.blur();
+    }
+    searchInputRef.current?.blur();
     setRenameModal({
       isOpen: true,
       id,
@@ -965,6 +984,10 @@ export default function App() {
 
   // Handler to open upload panel or prompt for folder creation fast
   const handleOpenUpload = (tab: 'file' | 'folder' | 'link', targetParentId?: string | null) => {
+    if (document.activeElement instanceof HTMLElement) {
+      document.activeElement.blur();
+    }
+    searchInputRef.current?.blur();
     const parentId = targetParentId !== undefined ? targetParentId : currentFolderId;
     if (tab === 'folder') {
       setRenameModal({
@@ -1172,6 +1195,7 @@ export default function App() {
       {/* Mobile Instant Search Overlay */}
       <MobileSearchModal
         isOpen={mobileSearchOpen}
+        isPaused={Boolean(previewDoc || activeUploadTab || shareDoc || confirmModal || renameModal || incomingShare)}
         onClose={handleCloseSearch}
         onSelectDocument={handleOpenPreview}
         onSelectFolder={handleNavigateFolder}

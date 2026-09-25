@@ -25,18 +25,9 @@ export const RenameModal: React.FC<RenameModalProps> = ({
   useEffect(() => {
     if (!isOpen) return;
     setName(currentName);
-    setTimeout(() => {
-      if (inputRef.current) {
-        inputRef.current.focus();
-        // If it's a file, select only the name part without extension
-        const lastDot = currentName.lastIndexOf('.');
-        if (!isFolder && lastDot > 0) {
-          inputRef.current.setSelectionRange(0, lastDot);
-        } else {
-          inputRef.current.select();
-        }
-      }
-    }, 50);
+    if (document.activeElement instanceof HTMLElement) {
+      document.activeElement.blur();
+    }
 
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {

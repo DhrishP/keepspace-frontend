@@ -22,6 +22,12 @@ export const FilePreview: React.FC<FilePreviewProps> = ({
   const [textContent, setTextContent] = useState<string | null>(null);
   const [isLoadingText, setIsLoadingText] = useState(false);
 
+  useEffect(() => {
+    if (document.activeElement instanceof HTMLElement) {
+      document.activeElement.blur();
+    }
+  }, []);
+
   const handleDownloadClick = async () => {
     if (isDownloading) return;
     setIsDownloading(true);

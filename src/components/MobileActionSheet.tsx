@@ -30,6 +30,9 @@ export const MobileActionSheet: React.FC<MobileActionSheetProps> = ({
 
   useEffect(() => {
     if (!isOpen) return;
+    if (document.activeElement instanceof HTMLElement) {
+      document.activeElement.blur();
+    }
     setDestinationFolderId(currentFolderId || '');
 
     // Fetch all folders for destination selection

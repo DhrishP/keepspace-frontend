@@ -27,6 +27,9 @@ export const ConfirmModal: React.FC<ConfirmModalProps> = ({
 }) => {
   useEffect(() => {
     if (!isOpen) return;
+    if (document.activeElement instanceof HTMLElement) {
+      document.activeElement.blur();
+    }
     hapticWarning();
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {

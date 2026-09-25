@@ -18,6 +18,7 @@ import { hapticLight, hapticSelection } from '../utils/haptics';
 
 interface MobileSearchModalProps {
   isOpen: boolean;
+  isPaused?: boolean;
   onClose: () => void;
   onSelectDocument: (doc: any) => void;
   onSelectFolder: (folderId: string) => void;
@@ -27,6 +28,7 @@ type FilterType = 'all' | 'pdf' | 'image' | 'video' | 'link' | 'folder';
 
 export const MobileSearchModal: React.FC<MobileSearchModalProps> = ({
   isOpen,
+  isPaused = false,
   onClose,
   onSelectDocument,
   onSelectFolder,
@@ -38,22 +40,48 @@ export const MobileSearchModal: React.FC<MobileSearchModalProps> = ({
   const [isLoadingVault, setIsLoadingVault] = useState(false);
   const [isSearching, setIsSearching] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
+  const onCloseRef = useRef(onClose);
+  onCloseRef.current = onClose;
+  const prevOpenRef = useRef(false);
+  const focusTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+  const dismissKeyboard = () => {
+    if (focusTimeoutRef.current) {
+      clearTimeout(focusTimeoutRef.current);
+      focusTimeoutRef.current = null;
+    }
+    inputRef.current?.blur();
+    if (document.activeElement instanceof HTMLElement) {
+      document.activeElement.blur();
+    }
+  };
 
   // Load all items when opening modal
   useEffect(() => {
     if (!isOpen) {
+      if (focusTimeoutRef.current) {
+        clearTimeout(focusTimeoutRef.current);
+        focusTimeoutRef.current = null;
+      }
       setQuery('');
       setActiveFilter('all');
+      prevOpenRef.current = false;
       return;
     }
 
-    hapticSelection();
-    setTimeout(() => {
-      inputRef.current?.focus();
-    }, 80);
+    // Only focus the search input on the INITIAL opening of search, and ONLY if not paused
+    if (!prevOpenRef.current && !isPaused) {
+      prevOpenRef.current = true;
+      hapticSelection();
+      focusTimeoutRef.current = setTimeout(() => {
+        if (!isPaused && inputRef.current) {
+          inputRef.current.focus();
+        }
+      }, 80);
+    }
 
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onClose();
+      if (e.key === 'Escape') onCloseRef.current();
     };
     window.addEventListener('keydown', handleKeyDown);
 
@@ -80,8 +108,21 @@ export const MobileSearchModal: React.FC<MobileSearchModalProps> = ({
 
     loadVaultData();
 
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [isOpen, onClose]);
+    return () => {
+      if (focusTimeoutRef.current) {
+        clearTimeout(focusTimeoutRef.current);
+        focusTimeoutRef.current = null;
+      }
+      window.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [isOpen]);
+
+  // When paused (e.g. preview opened over search), immediately cancel any pending focus and blur input
+  useEffect(() => {
+    if (isPaused) {
+      dismissKeyboard();
+    }
+  }, [isPaused]);
 
   // Handle debounced search query
   useEffect(() => {
@@ -168,12 +209,17 @@ export const MobileSearchModal: React.FC<MobileSearchModalProps> = ({
   };
 
   return (
-    <div className="mobile-search-overlay">
+    <div 
+      className="mobile-search-overlay"
+      style={isPaused ? { display: 'none' } : undefined}
+      aria-hidden={isPaused}
+    >
       {/* Top Header & Search Bar */}
       <div className="mobile-search-header">
         <button 
           className="mobile-search-back-btn" 
           onClick={() => {
+            dismissKeyboard();
             hapticLight();
             onClose();
           }}
@@ -194,6 +240,7 @@ export const MobileSearchModal: React.FC<MobileSearchModalProps> = ({
             autoComplete="off"
             autoCorrect="off"
             spellCheck={false}
+            disabled={isPaused}
           />
           {query && (
             <button 
@@ -293,11 +340,11 @@ export const MobileSearchModal: React.FC<MobileSearchModalProps> = ({
               <div 
                 key={`folder-${folder.id}`} 
                 className="mobile-search-item"
-                onTouchStart={() => inputRef.current?.blur()}
-                onMouseDown={() => inputRef.current?.blur()}
+                onTouchStart={dismissKeyboard}
+                onMouseDown={dismissKeyboard}
                 onClick={(e) => {
                   e.stopPropagation();
-                  inputRef.current?.blur();
+                  dismissKeyboard();
                   hapticLight();
                   onSelectFolder(folder.id);
                 }}
@@ -318,11 +365,11 @@ export const MobileSearchModal: React.FC<MobileSearchModalProps> = ({
               <div 
                 key={`doc-${doc.id}`} 
                 className="mobile-search-item"
-                onTouchStart={() => inputRef.current?.blur()}
-                onMouseDown={() => inputRef.current?.blur()}
+                onTouchStart={dismissKeyboard}
+                onMouseDown={dismissKeyboard}
                 onClick={(e) => {
                   e.stopPropagation();
-                  inputRef.current?.blur();
+                  dismissKeyboard();
                   hapticLight();
                   onSelectDocument(doc);
                 }}

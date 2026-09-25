@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { X, Copy, Check, Share2, Clock } from 'lucide-react';
 
 interface ShareModalProps {
@@ -18,6 +18,12 @@ export const ShareModal: React.FC<ShareModalProps> = ({
   const [shareUrl, setShareUrl] = useState<string>('');
   const [isGenerating, setIsGenerating] = useState(false);
   const [copied, setCopied] = useState(false);
+
+  useEffect(() => {
+    if (document.activeElement instanceof HTMLElement) {
+      document.activeElement.blur();
+    }
+  }, []);
 
   const handleGenerate = async () => {
     setIsGenerating(true);

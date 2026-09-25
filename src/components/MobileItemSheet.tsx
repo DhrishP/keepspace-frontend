@@ -44,6 +44,9 @@ export const MobileItemSheet: React.FC<MobileItemSheetProps> = ({
 }) => {
   useEffect(() => {
     if (!isOpen) return;
+    if (document.activeElement instanceof HTMLElement) {
+      document.activeElement.blur();
+    }
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') onClose();
     };
