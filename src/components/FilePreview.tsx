@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { X, ExternalLink, Download, Edit2, Check, Copy, Loader2 } from 'lucide-react';
+import { X, ExternalLink, Download, Edit2, Check, Copy, Loader2, Globe, RotateCw, Layout, Eye, Lock } from 'lucide-react';
 import { API_BASE_URL } from '../config';
 import { downloadDocument } from '../utils/download';
+import { hapticLight } from '../utils/haptics';
 
 interface FilePreviewProps {
   document: any;
@@ -21,6 +22,10 @@ export const FilePreview: React.FC<FilePreviewProps> = ({
   const [isDownloading, setIsDownloading] = useState(false);
   const [textContent, setTextContent] = useState<string | null>(null);
   const [isLoadingText, setIsLoadingText] = useState(false);
+  const [linkViewMode, setLinkViewMode] = useState<'iframe' | 'card'>('iframe');
+  const [isIframeLoading, setIsIframeLoading] = useState(true);
+  const [iframeKey, setIframeKey] = useState(0);
+  const [isUrlCopied, setIsUrlCopied] = useState(false);
 
   useEffect(() => {
     if (document.activeElement instanceof HTMLElement) {
@@ -164,28 +169,174 @@ export const FilePreview: React.FC<FilePreviewProps> = ({
             />
           </div>
         );
-      case 'link':
+      case 'link': {
+        const normalizedUrl = doc.url?.startsWith('http://') || doc.url?.startsWith('https://')
+          ? doc.url
+          : `https://${doc.url}`;
+
+        let hostname = doc.name;
+        try {
+          hostname = new URL(normalizedUrl).hostname.replace(/^www\./, '');
+        } catch {
+          hostname = doc.name;
+        }
+
         return (
-          <div className="link-preview-box">
-            {doc.thumbnail_url && (
-              <img className="link-preview-img" src={doc.thumbnail_url} alt={doc.name} />
+          <div className="preview-link-container">
+            {/* Top Browser Bar */}
+            <div className="preview-browser-bar">
+              <div className="preview-browser-url-pill" title={normalizedUrl}>
+                <Lock size={12} className="preview-browser-lock" />
+                <span className="preview-browser-hostname">{hostname}</span>
+                <span className="preview-browser-fullurl">{normalizedUrl}</span>
+              </div>
+
+              <div className="preview-browser-actions">
+                <div className="preview-view-toggle">
+                  <button 
+                    type="button"
+                    className={`preview-toggle-btn ${linkViewMode === 'iframe' ? 'active' : ''}`}
+                    onClick={() => {
+                      hapticLight();
+                      setLinkViewMode('iframe');
+                    }}
+                    title="Live Embedded Page"
+                  >
+                    <Eye size={13} />
+                    <span>Live Page</span>
+                  </button>
+                  <button 
+                    type="button"
+                    className={`preview-toggle-btn ${linkViewMode === 'card' ? 'active' : ''}`}
+                    onClick={() => {
+                      hapticLight();
+                      setLinkViewMode('card');
+                    }}
+                    title="Landing Overview Card"
+                  >
+                    <Layout size={13} />
+                    <span>Card</span>
+                  </button>
+                </div>
+
+                {linkViewMode === 'iframe' && (
+                  <button 
+                    type="button"
+                    className="preview-toolbar-btn"
+                    onClick={() => {
+                      hapticLight();
+                      setIsIframeLoading(true);
+                      setIframeKey(k => k + 1);
+                    }}
+                    title="Reload page"
+                  >
+                    <RotateCw size={13} />
+                  </button>
+                )}
+
+                <button 
+                  type="button"
+                  className="preview-toolbar-btn"
+                  onClick={() => {
+                    hapticLight();
+                    navigator.clipboard.writeText(normalizedUrl);
+                    setIsUrlCopied(true);
+                    setTimeout(() => setIsUrlCopied(false), 2000);
+                  }}
+                  title={isUrlCopied ? "Link Copied!" : "Copy Link"}
+                >
+                  {isUrlCopied ? <Check size={13} style={{ color: 'var(--success)' }} /> : <Copy size={13} />}
+                  <span>{isUrlCopied ? 'Copied' : 'Copy'}</span>
+                </button>
+
+                <a 
+                  href={normalizedUrl} 
+                  target="_blank" 
+                  rel="noopener noreferrer" 
+                  className="preview-toolbar-btn preview-primary-action"
+                  title="Open site in new tab"
+                  onClick={() => hapticLight()}
+                >
+                  <ExternalLink size={13} />
+                  <span>Open in Tab</span>
+                </a>
+              </div>
+            </div>
+
+            {/* View Mode 1: Interactive Live Iframe */}
+            {linkViewMode === 'iframe' ? (
+              <div className="preview-iframe-wrapper">
+                {isIframeLoading && (
+                  <div className="preview-iframe-loader">
+                    <Loader2 size={24} className="spin-icon" />
+                    <span>Loading landing page...</span>
+                  </div>
+                )}
+                <iframe 
+                  key={iframeKey}
+                  className="preview-web-frame" 
+                  src={normalizedUrl} 
+                  title={doc.name}
+                  sandbox="allow-scripts allow-same-origin allow-popups allow-forms"
+                  onLoad={() => setIsIframeLoading(false)}
+                />
+                <div className="preview-iframe-footer-hint">
+                  <span>If site restricts live embedding, click <strong>Open in Tab ↗</strong> above.</span>
+                </div>
+              </div>
+            ) : (
+              /* View Mode 2: Rich Landing Overview Card */
+              <div className="preview-link-card-view">
+                {doc.thumbnail_url && (
+                  <div className="preview-link-hero-wrap">
+                    <img 
+                      className="preview-link-hero-img" 
+                      src={doc.thumbnail_url} 
+                      alt={doc.name} 
+                    />
+                  </div>
+                )}
+                <div className="preview-link-content">
+                  <div className="preview-link-domain-badge">
+                    <Globe size={14} />
+                    <span>{hostname}</span>
+                  </div>
+                  <h3 className="preview-link-title">{doc.name}</h3>
+                  {doc.description && (
+                    <p className="preview-link-desc">{doc.description}</p>
+                  )}
+                  <p className="preview-link-url">{normalizedUrl}</p>
+                  <div style={{ display: 'flex', gap: '10px', marginTop: '14px', flexWrap: 'wrap', justifyContent: 'center' }}>
+                    <a 
+                      href={normalizedUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="btn btn-primary"
+                      style={{ padding: '8px 18px', fontSize: '14px', gap: '8px' }}
+                      onClick={() => hapticLight()}
+                    >
+                      <ExternalLink size={15} />
+                      Visit Website
+                    </a>
+                    <button
+                      type="button"
+                      className="btn btn-secondary"
+                      style={{ padding: '8px 16px', fontSize: '13px', gap: '6px' }}
+                      onClick={() => {
+                        hapticLight();
+                        setLinkViewMode('iframe');
+                      }}
+                    >
+                      <Eye size={14} />
+                      View Live Frame
+                    </button>
+                  </div>
+                </div>
+              </div>
             )}
-            <h3 style={{ fontFamily: 'var(--font-display)', fontWeight: 700 }}>{doc.name}</h3>
-            <p style={{ fontSize: '14px', color: 'var(--text-muted)', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '400px' }}>
-              {doc.url}
-            </p>
-            <a 
-              href={doc.url} 
-              target="_blank" 
-              rel="noopener noreferrer" 
-              className="btn btn-primary" 
-              style={{ marginTop: '10px', gap: '8px' }}
-            >
-              <ExternalLink size={16} />
-              Open Website
-            </a>
           </div>
         );
+      }
       default:
         return (
           <div style={{ textAlign: 'center', padding: '40px' }}>
@@ -207,7 +358,10 @@ export const FilePreview: React.FC<FilePreviewProps> = ({
 
   return (
     <div className="modal-overlay" onClick={onClose}>
-      <div className="modal-content preview-modal-content" onClick={(e) => e.stopPropagation()}>
+      <div 
+        className={`modal-content preview-modal-content ${doc.type === 'link' ? 'preview-modal-link' : ''}`} 
+        onClick={(e) => e.stopPropagation()}
+      >
         <div className="modal-header">
           <div style={{ display: 'flex', flexDirection: 'column', gap: '2px', maxWidth: '80%' }}>
             <h3 className="modal-title" style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
