@@ -96,7 +96,7 @@ export const FolderView: React.FC<FolderViewProps> = ({
     }
   };
 
-  if (isLoading && subfolders.length === 0 && documents.length === 0) {
+  if (isLoading) {
     return <FolderViewSkeleton cardSize={cardSize} currentTab={currentTab} />;
   }
 

@@ -72,19 +72,35 @@ export default function App() {
   
   // Navigation helpers with History pushState for PWA swipe-back support
   const handleNavigateFolder = (folderId: string | null) => {
+    if (document.activeElement instanceof HTMLElement) {
+      document.activeElement.blur();
+    }
+    searchInputRef.current?.blur();
+    setMobileSearchOpen(false);
     const targetHash = folderId ? `#folder=${folderId}` : '#';
     if (window.location.hash !== targetHash) {
       window.history.pushState({ folderId, tab: 'all' }, '', targetHash || window.location.pathname);
     }
+    setFolders([]);
+    setDocuments([]);
+    setIsLoading(true);
     setCurrentFolderId(folderId);
     setCurrentTab('all');
   };
 
   const handleSelectTab = (tab: string) => {
+    if (document.activeElement instanceof HTMLElement) {
+      document.activeElement.blur();
+    }
+    searchInputRef.current?.blur();
+    setMobileSearchOpen(false);
     const targetHash = tab !== 'all' ? `#tab=${tab}` : '#';
     if (window.location.hash !== targetHash) {
       window.history.pushState({ folderId: null, tab }, '', targetHash || window.location.pathname);
     }
+    setFolders([]);
+    setDocuments([]);
+    setIsLoading(true);
     setCurrentFolderId(null);
     setCurrentTab(tab);
   };
@@ -97,6 +113,9 @@ export default function App() {
   };
 
   const handleCloseSearch = () => {
+    if (document.activeElement instanceof HTMLElement) {
+      document.activeElement.blur();
+    }
     setMobileSearchOpen(false);
     if (window.location.hash.includes('search')) {
       window.history.back();
@@ -104,6 +123,11 @@ export default function App() {
   };
 
   const handleOpenPreview = (doc: any) => {
+    if (document.activeElement instanceof HTMLElement) {
+      document.activeElement.blur();
+    }
+    searchInputRef.current?.blur();
+    setMobileSearchOpen(false);
     setPreviewDoc(doc);
     window.history.pushState({ modal: 'preview' }, '', '#preview');
   };
@@ -151,8 +175,8 @@ export default function App() {
       // If hash is #search, ensure search is visible
       if (isSearch) {
         setMobileSearchOpen(true);
-      } else if (!isPreview && !isShare) {
-        // If we backed out of search to dashboard or folder, close search
+      } else if (!isShare) {
+        // If we backed out of search to dashboard, folder, or preview, close search
         setMobileSearchOpen(false);
       }
 

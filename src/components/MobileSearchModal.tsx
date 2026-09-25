@@ -229,7 +229,19 @@ export const MobileSearchModal: React.FC<MobileSearchModalProps> = ({
       </div>
 
       {/* Search Results Content */}
-      <div className="mobile-search-body">
+      <div 
+        className="mobile-search-body"
+        onScroll={() => {
+          if (document.activeElement === inputRef.current) {
+            inputRef.current?.blur();
+          }
+        }}
+        onTouchMove={() => {
+          if (document.activeElement === inputRef.current) {
+            inputRef.current?.blur();
+          }
+        }}
+      >
         {(isLoadingVault && !results.folders.length && !results.documents.length) ? (
           <div className="mobile-search-loading">
             <div className="mobile-search-spinner" />
@@ -281,10 +293,14 @@ export const MobileSearchModal: React.FC<MobileSearchModalProps> = ({
               <div 
                 key={`folder-${folder.id}`} 
                 className="mobile-search-item"
-                onClick={() => {
+                onTouchStart={() => inputRef.current?.blur()}
+                onMouseDown={() => inputRef.current?.blur()}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  inputRef.current?.blur();
                   hapticLight();
-                  onSelectFolder(folder.id);
                   onClose();
+                  onSelectFolder(folder.id);
                 }}
               >
                 <div className="card-icon-box icon-folder" style={{ width: '38px', height: '38px', flexShrink: 0 }}>
@@ -303,8 +319,13 @@ export const MobileSearchModal: React.FC<MobileSearchModalProps> = ({
               <div 
                 key={`doc-${doc.id}`} 
                 className="mobile-search-item"
-                onClick={() => {
+                onTouchStart={() => inputRef.current?.blur()}
+                onMouseDown={() => inputRef.current?.blur()}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  inputRef.current?.blur();
                   hapticLight();
+                  onClose();
                   onSelectDocument(doc);
                 }}
               >

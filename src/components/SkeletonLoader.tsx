@@ -77,13 +77,13 @@ export const FolderViewSkeleton: React.FC<{ cardSize: 'sm' | 'md' | 'lg'; curren
       {showFolders && (
         <div style={{ marginBottom: '20px' }}>
           <div className="skeleton-box skeleton-text" style={{ width: '80px', height: '12px', marginBottom: '12px' }} />
-          <FolderSkeletonGrid cardSize={cardSize} count={2} />
+          <FolderSkeletonGrid cardSize={cardSize} count={3} />
         </div>
       )}
 
       <div>
         <div className="skeleton-box skeleton-text" style={{ width: '60px', height: '12px', marginBottom: '12px' }} />
-        <CardSkeletonGrid cardSize={cardSize} count={4} />
+        <CardSkeletonGrid cardSize={cardSize} count={6} />
       </div>
     </div>
   );

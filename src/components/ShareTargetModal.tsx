@@ -1,7 +1,8 @@
- import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { X, Folder, UploadCloud, Link as LinkIcon, FileText, Image as ImageIcon, Loader2 } from 'lucide-react';
 import { API_BASE_URL } from '../config';
 import { hapticLight, hapticSuccess } from '../utils/haptics';
+import { FolderWaveSelector } from './FolderWaveSelector';
 
 interface ShareTargetModalProps {
   isOpen: boolean;
@@ -26,10 +27,15 @@ export const ShareTargetModal: React.FC<ShareTargetModalProps> = ({
   const [allFolders, setAllFolders] = useState<{ id: string; name: string; parent_id: string | null }[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [previewUrls, setPreviewUrls] = useState<string[]>([]);
+  const [fileNames, setFileNames] = useState<string[]>([]);
+  const [sharedLinkTitle, setSharedLinkTitle] = useState<string>('');
 
   // Fetch available vault folders
   useEffect(() => {
     if (!isOpen) return;
+
+    setFileNames(sharedFiles.map(f => f.name));
+    setSharedLinkTitle(sharedLink?.title || '');
 
     fetch(`${API_BASE_URL}/api/all-folders`)
       .then(res => res.json())
@@ -48,7 +54,7 @@ export const ShareTargetModal: React.FC<ShareTargetModalProps> = ({
     return () => {
       urls.forEach(url => URL.revokeObjectURL(url));
     };
-  }, [isOpen, sharedFiles]);
+  }, [isOpen, sharedFiles, sharedLink]);
 
   if (!isOpen) return null;
 
@@ -61,9 +67,27 @@ export const ShareTargetModal: React.FC<ShareTargetModalProps> = ({
 
     try {
       if (sharedFiles.length > 0) {
-        await onConfirmUpload(sharedFiles, selectedFolderId || null);
+        // Construct renamed files with user-edited names
+        const filesToUpload = sharedFiles.map((originalFile, idx) => {
+          const customName = (fileNames[idx] || '').trim();
+          if (!customName || customName === originalFile.name) {
+            return originalFile;
+          }
+          // Preserve extension if omitted by user
+          const dotIdx = originalFile.name.lastIndexOf('.');
+          const originalExt = dotIdx !== -1 ? originalFile.name.slice(dotIdx) : '';
+          const finalName = customName.includes('.') ? customName : `${customName}${originalExt}`;
+          
+          try {
+            return new (window as any).File([originalFile], finalName, { type: originalFile.type });
+          } catch (err) {
+            return originalFile;
+          }
+        });
+
+        await onConfirmUpload(filesToUpload, selectedFolderId || null);
       } else if (sharedLink?.url) {
-        await onConfirmSaveLink(sharedLink.url, sharedLink.title || '', selectedFolderId || null);
+        await onConfirmSaveLink(sharedLink.url, sharedLinkTitle || sharedLink.title || '', selectedFolderId || null);
       }
       hapticSuccess();
       onClose();
@@ -137,9 +161,24 @@ export const ShareTargetModal: React.FC<ShareTargetModalProps> = ({
                       </div>
                     )}
                     <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ fontSize: '13px', fontWeight: 500, color: 'var(--text-primary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                        {file.name}
-                      </div>
+                      <input
+                        type="text"
+                        className="form-input"
+                        value={fileNames[idx] !== undefined ? fileNames[idx] : file.name}
+                        onChange={(e) => {
+                          const updated = [...fileNames];
+                          updated[idx] = e.target.value;
+                          setFileNames(updated);
+                        }}
+                        placeholder="File name"
+                        style={{
+                          padding: '6px 10px',
+                          fontSize: '13px',
+                          width: '100%',
+                          marginBottom: '4px',
+                          background: 'var(--bg-surface)'
+                        }}
+                      />
                       <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
                         {formatBytes(file.size)} • {file.type || 'photo'}
                       </div>
@@ -153,9 +192,20 @@ export const ShareTargetModal: React.FC<ShareTargetModalProps> = ({
                   <LinkIcon size={18} />
                 </div>
                 <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontSize: '13px', fontWeight: 500, color: 'var(--text-primary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                    {sharedLink.title || 'Shared Link'}
-                  </div>
+                  <input
+                    type="text"
+                    className="form-input"
+                    value={sharedLinkTitle}
+                    onChange={(e) => setSharedLinkTitle(e.target.value)}
+                    placeholder="Link title"
+                    style={{
+                      padding: '6px 10px',
+                      fontSize: '13px',
+                      width: '100%',
+                      marginBottom: '4px',
+                      background: 'var(--bg-surface)'
+                    }}
+                  />
                   <div style={{ fontSize: '11px', color: 'var(--text-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                     {sharedLink.url}
                   </div>
@@ -164,33 +214,18 @@ export const ShareTargetModal: React.FC<ShareTargetModalProps> = ({
             ) : null}
           </div>
 
-          {/* Destination Folder Dropdown Selector */}
+          {/* Destination Folder Selector with Multiple Waves */}
           <div className="form-group" style={{ marginBottom: '20px' }}>
-            <label className="form-label" style={{ fontSize: '13px', fontWeight: 500, display: 'flex', alignItems: 'center', gap: '6px' }}>
+            <label className="form-label" style={{ fontSize: '13px', fontWeight: 500, display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '8px' }}>
               <Folder size={14} />
               <span>Destination Folder</span>
             </label>
-            <select
-              className="form-input"
-              value={selectedFolderId}
-              onChange={(e) => setSelectedFolderId(e.target.value)}
-              style={{
-                width: '100%',
-                padding: '10px 12px',
-                borderRadius: 'var(--border-radius-sm)',
-                background: 'var(--bg-surface)',
-                border: '1px solid var(--border-color)',
-                color: 'var(--text-primary)',
-                fontSize: '14px'
-              }}
-            >
-              <option value="">🏠 Main Vault (Root)</option>
-              {allFolders.map(folder => (
-                <option key={folder.id} value={folder.id}>
-                  📁 {folder.name}
-                </option>
-              ))}
-            </select>
+            <FolderWaveSelector
+              folders={allFolders}
+              selectedFolderId={selectedFolderId}
+              onChange={(folderId) => setSelectedFolderId(folderId)}
+              disabled={isSubmitting}
+            />
           </div>
 
           {/* Action Buttons */}

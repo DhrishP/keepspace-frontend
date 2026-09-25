@@ -2,6 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { Camera, UploadCloud, FolderPlus, Link2, Folder, X, ChevronDown, Clipboard } from 'lucide-react';
 import { API_BASE_URL } from '../config';
 import { hapticLight, hapticSelection, hapticSuccess } from '../utils/haptics';
+import { FolderWaveSelector } from './FolderWaveSelector';
 
 interface MobileActionSheetProps {
   isOpen: boolean;
@@ -25,7 +26,7 @@ export const MobileActionSheet: React.FC<MobileActionSheetProps> = ({
   const cameraInputRef = useRef<HTMLInputElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [destinationFolderId, setDestinationFolderId] = useState<string>(currentFolderId || '');
-  const [allFolders, setAllFolders] = useState<{ id: string; name: string }[]>([]);
+  const [allFolders, setAllFolders] = useState<{ id: string; name: string; parent_id?: string | null }[]>([]);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -94,30 +95,16 @@ export const MobileActionSheet: React.FC<MobileActionSheetProps> = ({
           </button>
         </div>
 
-        {/* Destination Folder Selector */}
-        <div className="mobile-destination-box">
-          <div className="mobile-destination-label">
-            <Folder size={16} className="mobile-dest-icon" />
-            <span>Upload into:</span>
-          </div>
-          <div className="mobile-destination-select-wrapper">
-            <select
-              className="mobile-destination-select"
-              value={destinationFolderId}
-              onChange={(e) => {
-                hapticLight();
-                setDestinationFolderId(e.target.value);
-              }}
-            >
-              <option value="">📁 Main Vault (Root)</option>
-              {allFolders.map((folder) => (
-                <option key={folder.id} value={folder.id}>
-                  📁 {folder.name}
-                </option>
-              ))}
-            </select>
-            <ChevronDown size={14} className="mobile-destination-arrow" />
-          </div>
+        {/* Destination Folder Selector with Multiple Waves */}
+        <div style={{ marginBottom: '16px' }}>
+          <FolderWaveSelector
+            folders={allFolders}
+            selectedFolderId={destinationFolderId}
+            onChange={(folderId) => {
+              hapticLight();
+              setDestinationFolderId(folderId);
+            }}
+          />
         </div>
 
         <div className="mobile-action-grid">

@@ -156,7 +156,7 @@ export const DocumentCard: React.FC<DocumentCardProps> = ({
           <div className="card-icon-box icon-folder">
             <Folder size={24} />
           </div>
-          <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
+          <div className="card-actions">
             {onOpenItemSheet && (
               <button 
                 className="card-more-btn" 
@@ -240,7 +240,7 @@ export const DocumentCard: React.FC<DocumentCardProps> = ({
         <div className={`card-icon-box ${getIconClass()}`}>
           {getIcon()}
         </div>
-        <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
+        <div className="card-actions">
           {onOpenItemSheet && (
             <button 
               className="card-more-btn" 
