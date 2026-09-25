@@ -2398,4 +2398,100 @@ body {
   box-shadow: 0 0 0 2px var(--accent-glow);
 }
 
+/* ==========================================================================
+   Global Window Drag & Drop Overlay (Mac / Desktop / Tablet)
+   ========================================================================== */
+.global-drag-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 99999;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(10, 12, 16, 0.78);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  border: 3px dashed var(--accent-primary);
+  pointer-events: none;
+  animation: fadeIn 0.15s ease-out;
+}
+
+.global-drag-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 14px;
+  padding: 38px 48px;
+  border-radius: var(--border-radius-lg);
+  background: var(--bg-surface);
+  border: 1px solid var(--border-color);
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.45), 0 0 45px rgba(99, 102, 241, 0.28);
+  text-align: center;
+  max-width: 440px;
+  transform: scale(1.02);
+  animation: dragCardPop 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes dragCardPop {
+  from {
+    transform: scale(0.92);
+    opacity: 0;
+  }
+  to {
+    transform: scale(1.02);
+    opacity: 1;
+  }
+}
+
+.global-drag-icon-box {
+  width: 82px;
+  height: 82px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, rgba(99, 102, 241, 0.18), rgba(168, 85, 247, 0.18));
+  border: 1px solid rgba(99, 102, 241, 0.35);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--accent-primary);
+  animation: floatIcon 2.4s ease-in-out infinite;
+}
+
+@keyframes floatIcon {
+  0%, 100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-6px);
+  }
+}
+
+.global-drag-title {
+  font-size: 22px;
+  font-weight: 700;
+  color: var(--text-primary);
+  margin: 0;
+}
+
+.global-drag-target-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 14px;
+  font-size: 13px;
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border-color);
+  border-radius: 20px;
+  color: var(--text-secondary);
+}
+
+.global-drag-target-badge strong {
+  color: var(--accent-primary);
+}
+
+.global-drag-hint {
+  font-size: 12px;
+  color: var(--text-muted);
+  margin: 0;
+}
+
 

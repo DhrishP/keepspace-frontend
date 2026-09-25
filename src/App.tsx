@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { Search, Sun, Moon, Menu, X } from 'lucide-react';
+import { Search, Sun, Moon, Menu, X, UploadCloud, Folder } from 'lucide-react';
 import { Sidebar } from './components/Sidebar';
 import { Login } from './components/Login';
 import { Breadcrumbs } from './components/Breadcrumbs';
@@ -820,6 +820,71 @@ export default function App() {
     };
   }, [isAuthenticated]);
 
+  // Global drag-and-drop file upload for Mac, desktop, and tablet
+  const [isWindowDragging, setIsWindowDragging] = useState(false);
+  const dragCounterRef = useRef(0);
+
+  useEffect(() => {
+    if (!isAuthenticated) return;
+
+    const handleDragEnter = (e: DragEvent) => {
+      e.preventDefault();
+      if (e.dataTransfer && Array.from(e.dataTransfer.types).includes('Files')) {
+        dragCounterRef.current++;
+        if (dragCounterRef.current === 1) {
+          setIsWindowDragging(true);
+        }
+      }
+    };
+
+    const handleDragOver = (e: DragEvent) => {
+      e.preventDefault();
+      if (e.dataTransfer && Array.from(e.dataTransfer.types).includes('Files')) {
+        e.dataTransfer.dropEffect = 'copy';
+      }
+    };
+
+    const handleDragLeave = (e: DragEvent) => {
+      e.preventDefault();
+      dragCounterRef.current--;
+      if (dragCounterRef.current <= 0) {
+        dragCounterRef.current = 0;
+        setIsWindowDragging(false);
+      }
+    };
+
+    const handleDrop = async (e: DragEvent) => {
+      e.preventDefault();
+      dragCounterRef.current = 0;
+      setIsWindowDragging(false);
+
+      if (e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+        hapticSuccess();
+        const droppedFiles = Array.from(e.dataTransfer.files);
+        await handleUploadFiles(droppedFiles, currentFolderId);
+      }
+    };
+
+    const handleWindowBlur = () => {
+      dragCounterRef.current = 0;
+      setIsWindowDragging(false);
+    };
+
+    window.addEventListener('dragenter', handleDragEnter);
+    window.addEventListener('dragover', handleDragOver);
+    window.addEventListener('dragleave', handleDragLeave);
+    window.addEventListener('drop', handleDrop);
+    window.addEventListener('blur', handleWindowBlur);
+
+    return () => {
+      window.removeEventListener('dragenter', handleDragEnter);
+      window.removeEventListener('dragover', handleDragOver);
+      window.removeEventListener('dragleave', handleDragLeave);
+      window.removeEventListener('drop', handleDrop);
+      window.removeEventListener('blur', handleWindowBlur);
+    };
+  }, [isAuthenticated, currentFolderId]);
+
   // Delete file or folder handler (Custom ConfirmModal instead of window.confirm)
   const handleDelete = (id: string, isFolder: boolean) => {
     if (document.activeElement instanceof HTMLElement) {
@@ -1174,6 +1239,7 @@ export default function App() {
           onDelete={handleDelete}
           onRename={handleRename}
           onOpenUpload={handleOpenUpload}
+          onUploadFiles={handleUploadFiles}
           cardSize={cardSize}
           setCardSize={handleSetCardSize}
           onMoveItem={handleMoveItem}
@@ -1315,6 +1381,25 @@ export default function App() {
             setIncomingShare(null);
           }}
         />
+      )}
+
+      {/* Global Drag & Drop Upload Zone Overlay */}
+      {isWindowDragging && (
+        <div className="global-drag-overlay">
+          <div className="global-drag-card">
+            <div className="global-drag-icon-box">
+              <UploadCloud size={44} />
+            </div>
+            <h2 className="global-drag-title">Drop files to upload</h2>
+            <div className="global-drag-target-badge">
+              <Folder size={14} />
+              <span>Uploading to: <strong>{folderName || 'Root Vault'}</strong></span>
+            </div>
+            <p className="global-drag-hint">
+              Drop anywhere to encrypt and save your files
+            </p>
+          </div>
+        </div>
       )}
     </div>
   );

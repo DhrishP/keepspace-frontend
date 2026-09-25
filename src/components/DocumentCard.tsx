@@ -31,6 +31,7 @@ interface DocumentCardProps {
   onMoveItem?: (itemId: string, isFolderItem: boolean, targetFolderId: string | null) => void;
   onShare?: (doc: any) => void;
   onOpenItemSheet?: (item: any, isFolder: boolean) => void;
+  onUploadFiles?: (files: FileList | File[], parentId?: string | null) => Promise<void>;
 }
 
 export const DocumentCard: React.FC<DocumentCardProps> = ({
@@ -44,6 +45,7 @@ export const DocumentCard: React.FC<DocumentCardProps> = ({
   onMoveItem,
   onShare,
   onOpenItemSheet,
+  onUploadFiles,
 }) => {
   const [isDragOver, setIsDragOver] = useState(false);
   const [isDownloading, setIsDownloading] = useState(false);
@@ -128,7 +130,18 @@ export const DocumentCard: React.FC<DocumentCardProps> = ({
   const handleDrop = (e: React.DragEvent) => {
     if (isFolder) {
       e.preventDefault();
+      e.stopPropagation();
       setIsDragOver(false);
+
+      // Check if external files were dropped directly onto this folder
+      if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+        if (onUploadFiles) {
+          onUploadFiles(e.dataTransfer.files, item.id);
+        }
+        return;
+      }
+
+      // Handle internal card move
       try {
         const rawData = e.dataTransfer.getData('text/plain');
         if (!rawData) return;

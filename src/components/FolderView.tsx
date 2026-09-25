@@ -21,6 +21,7 @@ interface FolderViewProps {
   onShare?: (doc: any) => void;
   onRename?: (id: string, isFolder: boolean, currentName: string) => void;
   onOpenItemSheet?: (item: any, isFolder: boolean) => void;
+  onUploadFiles?: (files: FileList | File[], parentId?: string | null) => Promise<void>;
 }
 
 export const FolderView: React.FC<FolderViewProps> = ({
@@ -41,6 +42,7 @@ export const FolderView: React.FC<FolderViewProps> = ({
   onShare,
   onRename,
   onOpenItemSheet,
+  onUploadFiles,
 }) => {
   const [isDragOver, setIsDragOver] = React.useState(false);
 
@@ -154,7 +156,7 @@ export const FolderView: React.FC<FolderViewProps> = ({
           <FolderOpen size={48} color="var(--text-muted)" />
           <h3 className="empty-state-title">This directory is empty</h3>
           <p style={{ fontSize: '14px', maxWidth: '340px', textAlign: 'center', color: 'var(--text-muted)' }}>
-            Keep your PDFs, photos, and notes organized. Add content to this vault directory.
+            Drag and drop files from your computer here, or choose an action below.
           </p>
           <div className="empty-actions-container">
             <div className="empty-action-card" onClick={() => onOpenUpload('file')}>
@@ -194,6 +196,7 @@ export const FolderView: React.FC<FolderViewProps> = ({
                     onDelete={onDelete}
                     onRename={onRename}
                     onMoveItem={onMoveItem}
+                    onUploadFiles={onUploadFiles}
                     onOpenItemSheet={onOpenItemSheet}
                   />
                 ))}
