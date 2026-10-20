@@ -1,11 +1,31 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { X, Upload, FolderPlus, Link2, File, FileText, Image as ImageIcon, Trash2, Plus, Loader2 } from 'lucide-react';
+import { 
+  X, 
+  Upload, 
+  FolderPlus, 
+  Link2, 
+  Trash2, 
+  Plus, 
+  Loader2,
+  FileEdit,
+  Bold,
+  Italic,
+  Heading,
+  List,
+  CheckSquare,
+  Code as CodeIcon,
+  Quote,
+  Clipboard,
+  Eye
+} from 'lucide-react';
+import { marked } from 'marked';
 import { API_BASE_URL } from '../config';
 import { FolderWaveSelector } from './FolderWaveSelector';
 import { renderFileIcon, getFileIconClass } from '../utils/fileType';
+import { hapticLight, hapticSuccess } from '../utils/haptics';
 
 interface UploadModalProps {
-  initialTab: 'file' | 'folder' | 'link';
+  initialTab: 'file' | 'folder' | 'link' | 'note';
   onClose: () => void;
   onCreateFolder: (name: string, parentId?: string | null) => Promise<void>;
   onSaveLink: (url: string, description: string, parentId?: string | null) => Promise<void>;
@@ -21,7 +41,7 @@ export const UploadModal: React.FC<UploadModalProps> = ({
   onUploadFiles,
   currentFolderId
 }) => {
-  const [activeTab, setActiveTab] = useState<'file' | 'folder' | 'link'>(initialTab);
+  const [activeTab, setActiveTab] = useState<'file' | 'folder' | 'link' | 'note'>(initialTab);
   
   // Folder inputs
   const [folderName, setFolderName] = useState('');
@@ -29,6 +49,12 @@ export const UploadModal: React.FC<UploadModalProps> = ({
   // Link inputs
   const [linkUrl, setLinkUrl] = useState('');
   const [linkDesc, setLinkDesc] = useState('');
+
+  // Markdown Note inputs
+  const [noteTitle, setNoteTitle] = useState('');
+  const [noteContent, setNoteContent] = useState('');
+  const [noteMode, setNoteMode] = useState<'write' | 'preview'>('write');
+  const noteTextareaRef = useRef<HTMLTextAreaElement>(null);
   
   // Form states
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -135,6 +161,57 @@ export const UploadModal: React.FC<UploadModalProps> = ({
     }
   };
 
+  // Note Formatting Helpers
+  const insertMarkdown = (before: string, after: string = '', defaultText: string = '') => {
+    hapticLight();
+    const textarea = noteTextareaRef.current;
+    if (!textarea) return;
+    const start = textarea.selectionStart;
+    const end = textarea.selectionEnd;
+    const currentVal = textarea.value;
+    const selected = currentVal.substring(start, end) || defaultText;
+    const replacement = `${before}${selected}${after}`;
+    const newVal = currentVal.substring(0, start) + replacement + currentVal.substring(end);
+    setNoteContent(newVal);
+    setTimeout(() => {
+      textarea.focus();
+      textarea.setSelectionRange(start + before.length, start + before.length + selected.length);
+    }, 10);
+  };
+
+  const handlePasteClipboardToNote = async () => {
+    try {
+      const text = await navigator.clipboard.readText();
+      if (text) {
+        hapticSuccess();
+        insertMarkdown(text);
+      }
+    } catch (_) {
+      // Browser permissions or clipboard empty
+    }
+  };
+
+  // Markdown Note Submit
+  const handleNoteSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!noteContent.trim() && !noteTitle.trim()) return;
+    setIsSubmitting(true);
+    try {
+      const rawTitle = (noteTitle || 'Untitled Note').trim();
+      const finalName = rawTitle.toLowerCase().endsWith('.md') ? rawTitle : `${rawTitle}.md`;
+      const blob = new Blob([noteContent], { type: 'text/markdown;charset=utf-8' });
+      const file = new (window as any).File([blob], finalName, { type: 'text/markdown' });
+      await onUploadFiles([file], selectedFolderId || null);
+      setNoteTitle('');
+      setNoteContent('');
+      onClose();
+    } catch (err) {
+      console.error("Error saving note:", err);
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
   // File Picker / Dropzone Handlers
   const handleDrag = (e: React.DragEvent) => {
     e.preventDefault();
@@ -146,7 +223,7 @@ export const UploadModal: React.FC<UploadModalProps> = ({
     }
   };
 
-  const handleDrop = async (e: React.DragEvent) => {
+  const handleDrop = (e: React.DragEvent) => {
     e.preventDefault();
     e.stopPropagation();
     setDragActive(false);
@@ -163,7 +240,10 @@ export const UploadModal: React.FC<UploadModalProps> = ({
 
   return (
     <div className="modal-overlay" onClick={onClose}>
-      <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+      <div 
+        className={`modal-content ${activeTab === 'note' ? 'upload-modal-note' : ''}`} 
+        onClick={(e) => e.stopPropagation()}
+      >
         <div className="modal-header" style={{ marginBottom: '12px' }}>
           <h3 className="modal-title">Add Content</h3>
           <button className="modal-close" onClick={onClose}>
@@ -173,21 +253,35 @@ export const UploadModal: React.FC<UploadModalProps> = ({
 
         <div className="modal-tabs">
           <button 
+            type="button"
             className={`modal-tab ${activeTab === 'file' ? 'active' : ''}`}
             onClick={() => setActiveTab('file')}
           >
+            <Upload size={14} style={{ marginRight: '6px', verticalAlign: 'text-bottom' }} />
             Upload Files
           </button>
           <button 
+            type="button"
+            className={`modal-tab ${activeTab === 'note' ? 'active' : ''}`}
+            onClick={() => setActiveTab('note')}
+          >
+            <FileEdit size={14} style={{ marginRight: '6px', verticalAlign: 'text-bottom' }} />
+            New Note
+          </button>
+          <button 
+            type="button"
             className={`modal-tab ${activeTab === 'folder' ? 'active' : ''}`}
             onClick={() => setActiveTab('folder')}
           >
+            <FolderPlus size={14} style={{ marginRight: '6px', verticalAlign: 'text-bottom' }} />
             Create Folder
           </button>
           <button 
+            type="button"
             className={`modal-tab ${activeTab === 'link' ? 'active' : ''}`}
             onClick={() => setActiveTab('link')}
           >
+            <Link2 size={14} style={{ marginRight: '6px', verticalAlign: 'text-bottom' }} />
             Save Link
           </button>
         </div>
@@ -258,16 +352,11 @@ export const UploadModal: React.FC<UploadModalProps> = ({
             ) : (
               <div>
                 <div style={{ 
-                  background: 'var(--bg-secondary)', 
-                  borderRadius: 'var(--border-radius-sm)', 
-                  padding: '12px',
-                  marginBottom: '16px',
-                  border: '1px solid var(--border-color)',
-                  maxHeight: '220px',
+                  maxHeight: '220px', 
                   overflowY: 'auto',
-                  display: 'flex',
-                  flexDirection: 'column',
-                  gap: '10px'
+                  display: 'flex', 
+                  flexDirection: 'column', 
+                  gap: '10px' 
                 }}>
                   {stagedFiles.map((file, idx) => (
                     <div key={idx} style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
@@ -289,20 +378,26 @@ export const UploadModal: React.FC<UploadModalProps> = ({
                             padding: '6px 10px',
                             fontSize: '13px',
                             width: '100%',
-                            marginBottom: '3px',
-                            background: 'var(--bg-surface)'
+                            whiteSpace: 'nowrap',
+                            overflow: 'hidden',
+                            textOverflow: 'ellipsis'
                           }}
                         />
-                        <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
-                          {formatBytes(file.size)} • {file.type || 'file'}
+                        <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '2px' }}>
+                          {formatBytes(file.size)}
                         </div>
                       </div>
                       <button
                         type="button"
-                        className="card-action-btn"
                         onClick={() => removeStagedFile(idx)}
+                        style={{
+                          background: 'none',
+                          border: 'none',
+                          color: 'var(--text-muted)',
+                          cursor: 'pointer',
+                          padding: '6px'
+                        }}
                         title="Remove file"
-                        style={{ padding: '6px', color: 'var(--danger)' }}
                       >
                         <Trash2 size={16} />
                       </button>
@@ -310,40 +405,46 @@ export const UploadModal: React.FC<UploadModalProps> = ({
                   ))}
                 </div>
 
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '10px' }}>
-                  <button
-                    type="button"
+                <div style={{ 
+                  display: 'flex', 
+                  justifyContent: 'space-between', 
+                  alignItems: 'center', 
+                  marginTop: '16px',
+                  paddingTop: '12px',
+                  borderTop: '1px solid var(--border-color)'
+                }}>
+                  <button 
+                    type="button" 
                     className="btn btn-secondary"
                     onClick={() => fileInputRef.current?.click()}
-                    disabled={isSubmitting}
-                    style={{ fontSize: '12px', display: 'flex', alignItems: 'center', gap: '6px' }}
+                    style={{ gap: '6px', fontSize: '13px' }}
                   >
-                    <Plus size={14} />
-                    <span>Add More</span>
+                    <Plus size={16} />
+                    Add More
                   </button>
-                  <div style={{ display: 'flex', gap: '8px' }}>
-                    <button
-                      type="button"
-                      className="btn btn-secondary"
+
+                  <div style={{ display: 'flex', gap: '10px' }}>
+                    <button 
+                      type="button" 
+                      className="btn btn-secondary" 
                       onClick={() => {
                         setStagedFiles([]);
                         setStagedNames([]);
                       }}
                       disabled={isSubmitting}
-                      style={{ fontSize: '12px' }}
                     >
                       Clear
                     </button>
-                    <button
-                      type="button"
-                      className="btn btn-primary"
+                    <button 
+                      type="button" 
+                      className="btn btn-primary" 
                       onClick={handleUploadStaged}
                       disabled={isSubmitting}
-                      style={{ fontSize: '13px', display: 'flex', alignItems: 'center', gap: '6px' }}
+                      style={{ gap: '8px' }}
                     >
                       {isSubmitting ? (
                         <>
-                          <Loader2 size={14} className="spin-icon" />
+                          <Loader2 size={16} className="spin-icon" />
                           <span>Uploading...</span>
                         </>
                       ) : (
@@ -357,7 +458,182 @@ export const UploadModal: React.FC<UploadModalProps> = ({
           </div>
         )}
 
-        {/* Tab 2: Create Folder */}
+        {/* Tab 2: New Note (Markdown) */}
+        {activeTab === 'note' && (
+          <form onSubmit={handleNoteSubmit} className="note-create-form">
+            <div className="form-group" style={{ marginBottom: '12px' }}>
+              <label className="form-label" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <span>Note Title</span>
+                <span className="docx-badge" style={{ background: 'rgba(6, 182, 212, 0.15)', color: '#06b6d4', fontSize: '10px' }}>
+                  MARKDOWN (.md)
+                </span>
+              </label>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <input 
+                  type="text" 
+                  className="form-input" 
+                  placeholder="e.g. Project Ideas, Meeting Notes" 
+                  value={noteTitle}
+                  onChange={(e) => setNoteTitle(e.target.value)}
+                  disabled={isSubmitting}
+                  style={{ flex: 1 }}
+                />
+                <span style={{ fontSize: '13px', fontWeight: 600, color: 'var(--text-muted)' }}>.md</span>
+              </div>
+            </div>
+
+            {/* Markdown Toolbar & Mode Switcher */}
+            <div className="note-toolbar">
+              <div className="note-formatting-actions">
+                <button 
+                  type="button" 
+                  className="note-tool-btn" 
+                  onClick={() => insertMarkdown('**', '**', 'bold text')}
+                  title="Bold (**text**)"
+                >
+                  <Bold size={13} />
+                </button>
+                <button 
+                  type="button" 
+                  className="note-tool-btn" 
+                  onClick={() => insertMarkdown('*', '*', 'italic text')}
+                  title="Italic (*text*)"
+                >
+                  <Italic size={13} />
+                </button>
+                <button 
+                  type="button" 
+                  className="note-tool-btn" 
+                  onClick={() => insertMarkdown('### ', '', 'Heading')}
+                  title="Heading (### Heading)"
+                >
+                  <Heading size={13} />
+                </button>
+                <button 
+                  type="button" 
+                  className="note-tool-btn" 
+                  onClick={() => insertMarkdown('- ', '', 'List item')}
+                  title="Bullet List (- item)"
+                >
+                  <List size={13} />
+                </button>
+                <button 
+                  type="button" 
+                  className="note-tool-btn" 
+                  onClick={() => insertMarkdown('- [ ] ', '', 'Task')}
+                  title="Task Checkbox (- [ ] task)"
+                >
+                  <CheckSquare size={13} />
+                </button>
+                <button 
+                  type="button" 
+                  className="note-tool-btn" 
+                  onClick={() => insertMarkdown('`', '`', 'code')}
+                  title="Inline Code (`code`)"
+                >
+                  <CodeIcon size={13} />
+                </button>
+                <button 
+                  type="button" 
+                  className="note-tool-btn" 
+                  onClick={() => insertMarkdown('> ', '', 'Quote')}
+                  title="Quote (> quote)"
+                >
+                  <Quote size={13} />
+                </button>
+                <button 
+                  type="button" 
+                  className="note-tool-btn" 
+                  onClick={handlePasteClipboardToNote}
+                  title="Paste from Clipboard"
+                >
+                  <Clipboard size={13} />
+                  <span>Paste</span>
+                </button>
+              </div>
+
+              <div className="preview-view-toggle">
+                <button 
+                  type="button"
+                  className={`preview-toggle-btn ${noteMode === 'write' ? 'active' : ''}`}
+                  onClick={() => {
+                    hapticLight();
+                    setNoteMode('write');
+                  }}
+                  title="Write mode"
+                >
+                  <CodeIcon size={12} />
+                  <span>Write</span>
+                </button>
+                <button 
+                  type="button"
+                  className={`preview-toggle-btn ${noteMode === 'preview' ? 'active' : ''}`}
+                  onClick={() => {
+                    hapticLight();
+                    setNoteMode('preview');
+                  }}
+                  title="Live Preview"
+                >
+                  <Eye size={12} />
+                  <span>Preview</span>
+                </button>
+              </div>
+            </div>
+
+            {/* Note Content Area */}
+            {noteMode === 'write' ? (
+              <div className="form-group" style={{ marginBottom: '12px' }}>
+                <textarea
+                  ref={noteTextareaRef}
+                  className="form-textarea note-textarea"
+                  placeholder="# My Note&#10;Write or paste your markdown note here...&#10;&#10;- Supports **bold**, *italics*, and lists&#10;- Switch to Preview above to see formatted result"
+                  value={noteContent}
+                  onChange={(e) => setNoteContent(e.target.value)}
+                  disabled={isSubmitting}
+                  rows={8}
+                />
+              </div>
+            ) : (
+              <div 
+                className="markdown-rendered-view note-preview-box"
+                dangerouslySetInnerHTML={{ 
+                  __html: marked.parse(noteContent || '*No content written yet. Switch to Write to start typing or paste text.*', { gfm: true, breaks: true }) as string 
+                }}
+              />
+            )}
+
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '12px', flexWrap: 'wrap', gap: '10px' }}>
+              <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
+                {noteContent.trim() ? `${noteContent.trim().split(/\s+/).length} words • ${noteContent.length} chars` : '0 words'}
+              </span>
+              <div style={{ display: 'flex', gap: '10px' }}>
+                <button type="button" className="btn btn-secondary" onClick={onClose} disabled={isSubmitting}>
+                  Cancel
+                </button>
+                <button 
+                  type="submit" 
+                  className="btn btn-primary" 
+                  disabled={isSubmitting || (!noteContent.trim() && !noteTitle.trim())}
+                  style={{ gap: '6px' }}
+                >
+                  {isSubmitting ? (
+                    <>
+                      <Loader2 size={14} className="spin-icon" />
+                      Saving...
+                    </>
+                  ) : (
+                    <>
+                      <Plus size={14} />
+                      Save Note
+                    </>
+                  )}
+                </button>
+              </div>
+            </div>
+          </form>
+        )}
+
+        {/* Tab 3: Create Folder */}
         {activeTab === 'folder' && (
           <form onSubmit={handleFolderSubmit}>
             <div className="form-group">
@@ -365,7 +641,7 @@ export const UploadModal: React.FC<UploadModalProps> = ({
               <input 
                 type="text" 
                 className="form-input" 
-                placeholder="e.g. Invoices, Family Trip" 
+                placeholder="e.g. Work, Financials, Personal" 
                 value={folderName}
                 onChange={(e) => setFolderName(e.target.value)}
                 required
@@ -383,7 +659,7 @@ export const UploadModal: React.FC<UploadModalProps> = ({
           </form>
         )}
 
-        {/* Tab 3: Save Link */}
+        {/* Tab 4: Save Link */}
         {activeTab === 'link' && (
           <form onSubmit={handleLinkSubmit}>
             <div className="form-group">

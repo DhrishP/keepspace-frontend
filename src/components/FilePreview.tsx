@@ -16,14 +16,16 @@ import {
   FileText,
   FileSpreadsheet,
   Code,
-  Search
+  Search,
+  FileEdit,
+  Save
 } from 'lucide-react';
 import { marked } from 'marked';
 import { renderAsync } from 'docx-preview';
 import { read, utils } from 'xlsx';
 import { API_BASE_URL } from '../config';
 import { downloadDocument } from '../utils/download';
-import { hapticLight } from '../utils/haptics';
+import { hapticLight, hapticSuccess } from '../utils/haptics';
 import { getFileCategory } from '../utils/fileType';
 
 interface FilePreviewProps {
@@ -47,7 +49,9 @@ export const FilePreview: React.FC<FilePreviewProps> = ({
   const [textContent, setTextContent] = useState<string | null>(null);
   const [isLoadingText, setIsLoadingText] = useState(false);
   const [isTextCopied, setIsTextCopied] = useState(false);
-  const [mdViewMode, setMdViewMode] = useState<'rendered' | 'raw'>('rendered');
+  const [mdViewMode, setMdViewMode] = useState<'rendered' | 'raw' | 'edit'>('rendered');
+  const [editedContent, setEditedContent] = useState('');
+  const [isSavingContent, setIsSavingContent] = useState(false);
 
   // Web Link States
   const [linkViewMode, setLinkViewMode] = useState<'iframe' | 'card'>('iframe');
@@ -117,6 +121,7 @@ export const FilePreview: React.FC<FilePreviewProps> = ({
         })
         .then(text => {
           setTextContent(text);
+          setEditedContent(text);
           setIsLoadingText(false);
         })
         .catch(err => {
@@ -126,6 +131,27 @@ export const FilePreview: React.FC<FilePreviewProps> = ({
         });
     }
   }, [doc.id, isTextOrCode]);
+
+  const handleSaveContent = async () => {
+    if (isSavingContent) return;
+    setIsSavingContent(true);
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/documents/${doc.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ content: editedContent })
+      });
+      if (!res.ok) throw new Error("Failed to save changes to document");
+      setTextContent(editedContent);
+      setMdViewMode('rendered');
+      hapticSuccess();
+    } catch (err: any) {
+      console.error("Save content error:", err);
+      alert("Failed to save note changes: " + (err.message || 'Unknown error'));
+    } finally {
+      setIsSavingContent(false);
+    }
+  };
 
   // DOCX Rendering Effect
   useEffect(() => {
@@ -501,6 +527,19 @@ export const FilePreview: React.FC<FilePreviewProps> = ({
                   <Code size={13} />
                   <span>Source</span>
                 </button>
+                <button 
+                  type="button"
+                  className={`preview-toggle-btn ${mdViewMode === 'edit' ? 'active' : ''}`}
+                  onClick={() => {
+                    hapticLight();
+                    setEditedContent(textContent || '');
+                    setMdViewMode('edit');
+                  }}
+                  title="Edit Markdown Note"
+                >
+                  <FileEdit size={13} />
+                  <span>Edit</span>
+                </button>
               </div>
             ) : (
               <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>
@@ -553,6 +592,37 @@ export const FilePreview: React.FC<FilePreviewProps> = ({
                 __html: marked.parse(textContent || '', { gfm: true, breaks: true }) as string 
               }}
             />
+          ) : isMarkdown && mdViewMode === 'edit' ? (
+            <div style={{ flex: 1, display: 'flex', flexDirection: 'column', padding: '16px', background: 'var(--bg-primary)', overflow: 'hidden' }}>
+              <textarea
+                className="form-textarea note-textarea"
+                style={{ flex: 1, minHeight: '340px', width: '100%', fontFamily: 'var(--font-mono)', fontSize: '13px', lineHeight: '1.6' }}
+                value={editedContent}
+                onChange={(e) => setEditedContent(e.target.value)}
+                disabled={isSavingContent}
+                placeholder="Write your markdown note here..."
+              />
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', marginTop: '12px' }}>
+                <button 
+                  type="button" 
+                  className="btn btn-secondary" 
+                  onClick={() => setMdViewMode('rendered')}
+                  disabled={isSavingContent}
+                >
+                  Cancel
+                </button>
+                <button 
+                  type="button" 
+                  className="btn btn-primary" 
+                  onClick={handleSaveContent}
+                  disabled={isSavingContent}
+                  style={{ gap: '6px' }}
+                >
+                  {isSavingContent ? <Loader2 size={14} className="spin-icon" /> : <Save size={14} />}
+                  Save Note
+                </button>
+              </div>
+            </div>
           ) : (
             <div className="markdown-raw-view">
               {textContent || 'Empty document'}

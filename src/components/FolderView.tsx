@@ -1,5 +1,5 @@
 import React from 'react';
-import { Plus, Search, FolderOpen, AlertCircle, UploadCloud, FolderPlus, Link2 } from 'lucide-react';
+import { Plus, Search, FolderOpen, AlertCircle, UploadCloud, FolderPlus, Link2, FileEdit } from 'lucide-react';
 import { DocumentCard } from './DocumentCard';
 import { FolderViewSkeleton } from './SkeletonLoader';
 
@@ -14,7 +14,7 @@ interface FolderViewProps {
   onPreviewDocument: (doc: any) => void;
   onToggleFavorite?: (id: string, currentFav: number) => void;
   onDelete: (id: string, isFolder: boolean) => void;
-  onOpenUpload: (tab: 'file' | 'folder' | 'link') => void;
+  onOpenUpload: (tab: 'file' | 'folder' | 'link' | 'note') => void;
   cardSize: 'sm' | 'md' | 'lg';
   setCardSize: (size: 'sm' | 'md' | 'lg') => void;
   onMoveItem?: (itemId: string, isFolderItem: boolean, targetFolderId: string | null) => void;
@@ -140,6 +140,10 @@ export const FolderView: React.FC<FolderViewProps> = ({
               </button>
             </div>
 
+            <button className="btn btn-secondary" onClick={() => onOpenUpload('note')} style={{ gap: '6px' }}>
+              <FileEdit size={15} />
+              New Note
+            </button>
             <button className="btn btn-secondary" onClick={() => onOpenUpload('link')}>
               Add Link
             </button>
@@ -159,6 +163,12 @@ export const FolderView: React.FC<FolderViewProps> = ({
             Drag and drop files from your computer here, or choose an action below.
           </p>
           <div className="empty-actions-container">
+            <div className="empty-action-card" onClick={() => onOpenUpload('note')}>
+              <div className="empty-action-icon icon-md">
+                <FileEdit size={20} />
+              </div>
+              <span>New Note</span>
+            </div>
             <div className="empty-action-card" onClick={() => onOpenUpload('file')}>
               <div className="empty-action-icon icon-pdf">
                 <UploadCloud size={20} />

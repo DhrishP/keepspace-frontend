@@ -24,7 +24,7 @@ interface SidebarProps {
   folders: any[];
   currentFolderId: string | null;
   setCurrentFolderId: (id: string | null) => void;
-  onOpenUpload: (tab: 'file' | 'folder' | 'link') => void;
+  onOpenUpload: (tab: 'file' | 'folder' | 'link' | 'note') => void;
   canInstall: boolean;
   triggerInstall: () => void;
   stats: {

@@ -232,7 +232,7 @@ export default function App() {
   const [stats, setStats] = useState<any>(null);
   
   // Modal / Preview Overlay States
-  const [activeUploadTab, setActiveUploadTab] = useState<'file' | 'folder' | 'link' | null>(null);
+  const [activeUploadTab, setActiveUploadTab] = useState<'file' | 'folder' | 'link' | 'note' | null>(null);
   const [previewDoc, setPreviewDoc] = useState<any | null>(null);
   const [shareDoc, setShareDoc] = useState<any | null>(null);
 
@@ -1048,7 +1048,7 @@ export default function App() {
   };
 
   // Handler to open upload panel or prompt for folder creation fast
-  const handleOpenUpload = (tab: 'file' | 'folder' | 'link', targetParentId?: string | null) => {
+  const handleOpenUpload = (tab: 'file' | 'folder' | 'link' | 'note', targetParentId?: string | null) => {
     if (document.activeElement instanceof HTMLElement) {
       document.activeElement.blur();
     }

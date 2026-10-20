@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Camera, UploadCloud, FolderPlus, Link2, Folder, X, ChevronDown, Clipboard } from 'lucide-react';
+import { Camera, UploadCloud, FolderPlus, Link2, Folder, X, ChevronDown, Clipboard, FileEdit } from 'lucide-react';
 import { API_BASE_URL } from '../config';
 import { hapticLight, hapticSelection, hapticSuccess } from '../utils/haptics';
 import { FolderWaveSelector } from './FolderWaveSelector';
@@ -8,7 +8,7 @@ interface MobileActionSheetProps {
   isOpen: boolean;
   onClose: () => void;
   onUploadFiles: (files: FileList, parentId: string | null) => Promise<void>;
-  onOpenUploadModal: (tab: 'file' | 'folder' | 'link', parentId?: string | null) => void;
+  onOpenUploadModal: (tab: 'file' | 'folder' | 'link' | 'note', parentId?: string | null) => void;
   onPastePhoto?: (files: File[]) => void;
   currentFolderId: string | null;
   currentFolderName: string | null;
@@ -198,6 +198,25 @@ export const MobileActionSheet: React.FC<MobileActionSheetProps> = ({
             <div className="mobile-action-texts">
               <span className="mobile-action-name">Paste Photo</span>
               <span className="mobile-action-desc">From clipboard</span>
+            </div>
+          </button>
+
+          {/* Option: New Note */}
+          <button 
+            type="button"
+            className="mobile-action-card"
+            onClick={() => {
+              hapticLight();
+              onClose();
+              onOpenUploadModal('note', destinationFolderId || null);
+            }}
+          >
+            <div className="mobile-action-icon" style={{ background: 'rgba(6, 182, 212, 0.15)', color: '#06b6d4' }}>
+              <FileEdit size={22} />
+            </div>
+            <div className="mobile-action-texts">
+              <span className="mobile-action-name">New Note</span>
+              <span className="mobile-action-desc">Write markdown (.md)</span>
             </div>
           </button>
 
