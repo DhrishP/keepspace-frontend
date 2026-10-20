@@ -8,6 +8,7 @@ import {
   Plus, 
   Loader2,
   FileEdit,
+  FileText,
   Bold,
   Italic,
   Heading,
@@ -265,8 +266,8 @@ export const UploadModal: React.FC<UploadModalProps> = ({
             className={`modal-tab ${activeTab === 'note' ? 'active' : ''}`}
             onClick={() => setActiveTab('note')}
           >
-            <FileEdit size={14} style={{ marginRight: '6px', verticalAlign: 'text-bottom' }} />
-            New Note
+            <FileText size={14} style={{ marginRight: '6px', verticalAlign: 'text-bottom' }} />
+            Text File (.md)
           </button>
           <button 
             type="button"
@@ -623,8 +624,8 @@ export const UploadModal: React.FC<UploadModalProps> = ({
                     </>
                   ) : (
                     <>
-                      <Plus size={14} />
-                      Save Note
+                      <FileText size={14} />
+                      Create Text File
                     </>
                   )}
                 </button>

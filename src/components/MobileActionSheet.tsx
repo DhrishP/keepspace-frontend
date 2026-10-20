@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Camera, UploadCloud, FolderPlus, Link2, Folder, X, ChevronDown, Clipboard, FileEdit } from 'lucide-react';
+import { Camera, UploadCloud, FolderPlus, Link2, Folder, X, ChevronDown, Clipboard, FileText, FileEdit } from 'lucide-react';
 import { API_BASE_URL } from '../config';
 import { hapticLight, hapticSelection, hapticSuccess } from '../utils/haptics';
 import { FolderWaveSelector } from './FolderWaveSelector';
@@ -201,7 +201,7 @@ export const MobileActionSheet: React.FC<MobileActionSheetProps> = ({
             </div>
           </button>
 
-          {/* Option: New Note */}
+          {/* Option: Create Text File */}
           <button 
             type="button"
             className="mobile-action-card"
@@ -211,12 +211,12 @@ export const MobileActionSheet: React.FC<MobileActionSheetProps> = ({
               onOpenUploadModal('note', destinationFolderId || null);
             }}
           >
-            <div className="mobile-action-icon" style={{ background: 'rgba(6, 182, 212, 0.15)', color: '#06b6d4' }}>
-              <FileEdit size={22} />
+            <div className="mobile-action-icon note">
+              <FileText size={22} />
             </div>
             <div className="mobile-action-texts">
-              <span className="mobile-action-name">New Note</span>
-              <span className="mobile-action-desc">Write markdown (.md)</span>
+              <span className="mobile-action-name">Create Text File</span>
+              <span className="mobile-action-desc">Write or paste text (.md)</span>
             </div>
           </button>
 

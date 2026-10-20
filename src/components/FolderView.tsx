@@ -140,7 +140,7 @@ export const FolderView: React.FC<FolderViewProps> = ({
               </button>
             </div>
 
-            <button className="btn btn-secondary" onClick={() => onOpenUpload('note')} style={{ gap: '6px' }}>
+            <button className="btn btn-secondary desktop-only" onClick={() => onOpenUpload('note')} style={{ gap: '6px' }}>
               <FileEdit size={15} />
               New Note
             </button>
@@ -167,7 +167,7 @@ export const FolderView: React.FC<FolderViewProps> = ({
               <div className="empty-action-icon icon-md">
                 <FileEdit size={20} />
               </div>
-              <span>New Note</span>
+              <span>Create Text File</span>
             </div>
             <div className="empty-action-card" onClick={() => onOpenUpload('file')}>
               <div className="empty-action-icon icon-pdf">
