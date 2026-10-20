@@ -823,13 +823,30 @@ export default function App() {
   // Global drag-and-drop file upload for Mac, desktop, and tablet
   const [isWindowDragging, setIsWindowDragging] = useState(false);
   const dragCounterRef = useRef(0);
+  const isInternalDragRef = useRef(false);
 
   useEffect(() => {
     if (!isAuthenticated) return;
 
+    const handleWindowDragStart = () => {
+      isInternalDragRef.current = true;
+    };
+
+    const handleWindowDragEnd = () => {
+      isInternalDragRef.current = false;
+      dragCounterRef.current = 0;
+      setIsWindowDragging(false);
+    };
+
     const handleDragEnter = (e: DragEvent) => {
-      e.preventDefault();
-      if (e.dataTransfer && Array.from(e.dataTransfer.types).includes('Files')) {
+      // If drag originated inside the page (e.g. moving file to folder), never show upload overlay
+      if (isInternalDragRef.current) return;
+      if (!e.dataTransfer) return;
+      const types = Array.from(e.dataTransfer.types || []);
+      if (types.includes('application/x-keepspace-item')) return;
+
+      if (types.includes('Files')) {
+        e.preventDefault();
         dragCounterRef.current++;
         if (dragCounterRef.current === 1) {
           setIsWindowDragging(true);
@@ -838,13 +855,19 @@ export default function App() {
     };
 
     const handleDragOver = (e: DragEvent) => {
-      e.preventDefault();
-      if (e.dataTransfer && Array.from(e.dataTransfer.types).includes('Files')) {
+      if (isInternalDragRef.current) return;
+      if (!e.dataTransfer) return;
+      const types = Array.from(e.dataTransfer.types || []);
+      if (types.includes('application/x-keepspace-item')) return;
+
+      if (types.includes('Files')) {
+        e.preventDefault();
         e.dataTransfer.dropEffect = 'copy';
       }
     };
 
     const handleDragLeave = (e: DragEvent) => {
+      if (isInternalDragRef.current) return;
       e.preventDefault();
       dragCounterRef.current--;
       if (dragCounterRef.current <= 0) {
@@ -854,10 +877,14 @@ export default function App() {
     };
 
     const handleDrop = async (e: DragEvent) => {
-      e.preventDefault();
       dragCounterRef.current = 0;
       setIsWindowDragging(false);
+      if (isInternalDragRef.current) {
+        isInternalDragRef.current = false;
+        return;
+      }
 
+      e.preventDefault();
       if (e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files.length > 0) {
         hapticSuccess();
         const droppedFiles = Array.from(e.dataTransfer.files);
@@ -866,10 +893,13 @@ export default function App() {
     };
 
     const handleWindowBlur = () => {
+      isInternalDragRef.current = false;
       dragCounterRef.current = 0;
       setIsWindowDragging(false);
     };
 
+    window.addEventListener('dragstart', handleWindowDragStart, true);
+    window.addEventListener('dragend', handleWindowDragEnd, true);
     window.addEventListener('dragenter', handleDragEnter);
     window.addEventListener('dragover', handleDragOver);
     window.addEventListener('dragleave', handleDragLeave);
@@ -877,6 +907,8 @@ export default function App() {
     window.addEventListener('blur', handleWindowBlur);
 
     return () => {
+      window.removeEventListener('dragstart', handleWindowDragStart, true);
+      window.removeEventListener('dragend', handleWindowDragEnd, true);
       window.removeEventListener('dragenter', handleDragEnter);
       window.removeEventListener('dragover', handleDragOver);
       window.removeEventListener('dragleave', handleDragLeave);
@@ -984,6 +1016,13 @@ export default function App() {
 
   // Handler to move drag-and-drop items
   const handleMoveItem = async (itemId: string, isFolderItem: boolean, targetFolderId: string | null) => {
+    // 1. Optimistic UI update: immediately remove moved item from current view
+    if (isFolderItem) {
+      setFolders(prev => prev.filter(f => f.id !== itemId));
+    } else {
+      setDocuments(prev => prev.filter(d => d.id !== itemId));
+    }
+
     try {
       const url = isFolderItem 
         ? `${API_BASE_URL}/api/folders/${itemId}` 
@@ -1003,9 +1042,11 @@ export default function App() {
       } else {
         const err = await res.json();
         addToast(err.error || "Failed to move item", "error");
+        fetchData();
       }
     } catch (e) {
       addToast("Network error moving item", "error");
+      fetchData();
     }
   };
 
@@ -1310,6 +1351,7 @@ export default function App() {
           onRename={handleRename}
           onDelete={handleDelete}
           onShare={handleOpenShare}
+          onNavigateFolder={handleNavigateFolder}
         />
       )}
 
@@ -1355,6 +1397,7 @@ export default function App() {
           document={previewDoc}
           onClose={handleClosePreview}
           onUpdateDescription={handleUpdateDescription}
+          onNavigateFolder={handleNavigateFolder}
         />
       )}
 

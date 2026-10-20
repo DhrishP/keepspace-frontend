@@ -18,7 +18,7 @@ import {
   Loader2, 
   MoreVertical 
 } from 'lucide-react';
-import { hapticSelection } from '../utils/haptics';
+import { hapticSelection, hapticSuccess } from '../utils/haptics';
 import { renderFileIcon, getFileIconClass, getFileCategory } from '../utils/fileType';
 
 interface DocumentCardProps {
@@ -49,6 +49,8 @@ export const DocumentCard: React.FC<DocumentCardProps> = ({
   onUploadFiles,
 }) => {
   const [isDragOver, setIsDragOver] = useState(false);
+  const [isDragging, setIsDragging] = useState(false);
+  const [isDropSuccess, setIsDropSuccess] = useState(false);
   const [isDownloading, setIsDownloading] = useState(false);
   const touchTimerRef = useRef<NodeJS.Timeout | null>(null);
   const touchStartPosRef = useRef<{ x: number; y: number } | null>(null);
@@ -102,11 +104,20 @@ export const DocumentCard: React.FC<DocumentCardProps> = ({
   };
 
   const handleDragStart = (e: React.DragEvent) => {
-    e.dataTransfer.setData('text/plain', JSON.stringify({
+    const payload = JSON.stringify({
       id: item.id,
       isFolder: isFolder
-    }));
+    });
+    e.dataTransfer.setData('application/x-keepspace-item', payload);
+    e.dataTransfer.setData('text/plain', payload);
     e.dataTransfer.effectAllowed = 'move';
+    requestAnimationFrame(() => {
+      setIsDragging(true);
+    });
+  };
+
+  const handleDragEnd = () => {
+    setIsDragging(false);
   };
 
   const handleDragOver = (e: React.DragEvent) => {
@@ -144,12 +155,15 @@ export const DocumentCard: React.FC<DocumentCardProps> = ({
 
       // Handle internal card move
       try {
-        const rawData = e.dataTransfer.getData('text/plain');
+        const rawData = e.dataTransfer.getData('application/x-keepspace-item') || e.dataTransfer.getData('text/plain');
         if (!rawData) return;
         const draggedData = JSON.parse(rawData);
         if (draggedData.id === item.id && draggedData.isFolder === isFolder) {
           return;
         }
+        setIsDropSuccess(true);
+        setTimeout(() => setIsDropSuccess(false), 500);
+        hapticSuccess();
         if (onMoveItem) {
           onMoveItem(draggedData.id, draggedData.isFolder, item.id);
         }
@@ -180,10 +194,11 @@ export const DocumentCard: React.FC<DocumentCardProps> = ({
   if (isFolder) {
     return (
       <div 
-        className={`card-item ${isDragOver ? 'drag-over' : ''}`} 
+        className={`card-item card-folder ${isDragging ? 'is-dragging' : ''} ${isDragOver ? 'drag-over' : ''} ${isDropSuccess ? 'drop-success' : ''}`} 
         onClick={() => onNavigate(item.id)}
         draggable={true}
         onDragStart={handleDragStart}
+        onDragEnd={handleDragEnd}
         onDragOver={handleDragOver}
         onDragEnter={handleDragEnter}
         onDragLeave={handleDragLeave}
@@ -257,10 +272,11 @@ export const DocumentCard: React.FC<DocumentCardProps> = ({
 
   return (
     <div 
-      className="card-item" 
+      className={`card-item card-file ${isDragging ? 'is-dragging' : ''}`} 
       onClick={() => onPreview(item)}
       draggable={true}
       onDragStart={handleDragStart}
+      onDragEnd={handleDragEnd}
       onTouchStart={handleTouchStart}
       onTouchEnd={handleTouchEnd}
       onTouchMove={handleTouchMove}

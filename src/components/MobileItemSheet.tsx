@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   Eye, 
   Download, 
@@ -15,6 +15,7 @@ import {
   File, 
   X 
 } from 'lucide-react';
+import { API_BASE_URL } from '../config';
 import { hapticLight, hapticWarning, hapticSuccess } from '../utils/haptics';
 import { renderFileIcon, getFileIconClass, getFileCategory } from '../utils/fileType';
 
@@ -29,6 +30,7 @@ interface MobileItemSheetProps {
   onRename: (id: string, isFolder: boolean, currentName: string) => void;
   onDelete: (id: string, isFolder: boolean) => void;
   onShare?: (doc: any) => void;
+  onNavigateFolder?: (folderId: string | null) => void;
 }
 
 export const MobileItemSheet: React.FC<MobileItemSheetProps> = ({
@@ -42,7 +44,10 @@ export const MobileItemSheet: React.FC<MobileItemSheetProps> = ({
   onRename,
   onDelete,
   onShare,
+  onNavigateFolder,
 }) => {
+  const [folderPath, setFolderPath] = useState<{ id: string; name: string }[]>([]);
+
   useEffect(() => {
     if (!isOpen) return;
     if (document.activeElement instanceof HTMLElement) {
@@ -54,6 +59,26 @@ export const MobileItemSheet: React.FC<MobileItemSheetProps> = ({
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [isOpen, onClose]);
+
+  // Resolve folder path for document
+  useEffect(() => {
+    if (!isOpen || !item || isFolder) {
+      setFolderPath([]);
+      return;
+    }
+    if (item.breadcrumbs && Array.isArray(item.breadcrumbs)) {
+      setFolderPath(item.breadcrumbs);
+      return;
+    }
+    if (!item.parent_id) {
+      setFolderPath([]);
+      return;
+    }
+    fetch(`${API_BASE_URL}/api/folder-path/${item.parent_id}`)
+      .then((res) => (res.ok ? res.json() : []))
+      .then((crumbs) => setFolderPath(Array.isArray(crumbs) ? crumbs : []))
+      .catch(() => {});
+  }, [isOpen, item?.id, item?.parent_id, isFolder]);
 
   if (!isOpen || !item) return null;
 
@@ -68,6 +93,10 @@ export const MobileItemSheet: React.FC<MobileItemSheetProps> = ({
     const i = Math.floor(Math.log(bytes) / Math.log(k));
     return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
   };
+
+  const pathDisplay = folderPath.length > 0 
+    ? `Vault / ${folderPath.map(c => c.name).join(' / ')}` 
+    : 'Vault (Root)';
 
   return (
     <div className="mobile-sheet-overlay" onClick={(e) => e.target === e.currentTarget && onClose()}>
@@ -89,6 +118,14 @@ export const MobileItemSheet: React.FC<MobileItemSheetProps> = ({
                 </>
               )}
             </div>
+
+            {/* Folder location */}
+            {!isFolder && (
+              <div className="mobile-sheet-path-row">
+                <Folder size={11} style={{ flexShrink: 0, opacity: 0.8, color: 'var(--accent-primary)' }} />
+                <span className="mobile-sheet-path-text">{pathDisplay}</span>
+              </div>
+            )}
           </div>
           <button className="mobile-sheet-close-btn" onClick={onClose} aria-label="Close">
             <X size={18} />

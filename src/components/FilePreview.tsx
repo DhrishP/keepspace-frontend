@@ -18,7 +18,9 @@ import {
   Code,
   Search,
   FileEdit,
-  Save
+  Save,
+  Folder,
+  ChevronRight
 } from 'lucide-react';
 import { marked } from 'marked';
 import { renderAsync } from 'docx-preview';
@@ -32,18 +34,29 @@ interface FilePreviewProps {
   document: any;
   onClose: () => void;
   onUpdateDescription: (id: string, description: string) => Promise<void>;
+  onNavigateFolder?: (folderId: string | null) => void;
 }
+
+const folderPathCache = new Map<string, { id: string; name: string }[]>();
 
 export const FilePreview: React.FC<FilePreviewProps> = ({
   document: doc,
   onClose,
   onUpdateDescription,
+  onNavigateFolder,
 }) => {
   const [desc, setDesc] = useState(doc.description || '');
   const [isEditing, setIsEditing] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [isCopied, setIsCopied] = useState(false);
   const [isDownloading, setIsDownloading] = useState(false);
+
+  // Folder & Subfolder Path State
+  const [folderPath, setFolderPath] = useState<{ id: string; name: string }[]>(() => {
+    if (doc.breadcrumbs && Array.isArray(doc.breadcrumbs)) return doc.breadcrumbs;
+    if (!doc.parent_id) return [];
+    return folderPathCache.get(doc.parent_id) || [];
+  });
 
   // Text & Markdown States
   const [textContent, setTextContent] = useState<string | null>(null);
@@ -97,6 +110,44 @@ export const FilePreview: React.FC<FilePreviewProps> = ({
       document.activeElement.blur();
     }
   }, []);
+
+  // Fetch folder hierarchy breadcrumbs if document resides in a folder
+  useEffect(() => {
+    if (doc.breadcrumbs && Array.isArray(doc.breadcrumbs)) {
+      setFolderPath(doc.breadcrumbs);
+      return;
+    }
+    if (!doc.parent_id) {
+      setFolderPath([]);
+      return;
+    }
+    if (folderPathCache.has(doc.parent_id)) {
+      setFolderPath(folderPathCache.get(doc.parent_id)!);
+      return;
+    }
+
+    fetch(`${API_BASE_URL}/api/folder-path/${doc.parent_id}`)
+      .then((res) => {
+        if (!res.ok) throw new Error('Path endpoint failed');
+        return res.json();
+      })
+      .then((data) => {
+        const crumbs = Array.isArray(data) ? data : [];
+        folderPathCache.set(doc.parent_id, crumbs);
+        setFolderPath(crumbs);
+      })
+      .catch(() => {
+        // Fallback to GET /api/folders/:id
+        fetch(`${API_BASE_URL}/api/folders/${doc.parent_id}`)
+          .then((r) => r.json())
+          .then((folderData) => {
+            const crumbs = folderData.breadcrumbs || [];
+            folderPathCache.set(doc.parent_id, crumbs);
+            setFolderPath(crumbs);
+          })
+          .catch((err) => console.error("Could not resolve document folder path:", err));
+      });
+  }, [doc.id, doc.parent_id, doc.breadcrumbs]);
 
   const getMediaUrl = () => {
     if (doc.type === 'link') return doc.url;
@@ -874,11 +925,52 @@ export const FilePreview: React.FC<FilePreviewProps> = ({
         onClick={(e) => e.stopPropagation()}
       >
         <div className="modal-header">
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '2px', maxWidth: '80%' }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', maxWidth: '80%' }}>
             <h3 className="modal-title" style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
               {doc.name}
             </h3>
-            <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>
+
+            {/* Folder & Subfolder Path */}
+            <div className="preview-folder-path-bar" title="Current folder location">
+              <Folder size={12} className="preview-path-icon" />
+              <span className="preview-path-label">Location:</span>
+              <div className="preview-path-crumbs">
+                <button 
+                  type="button" 
+                  className={`preview-crumb-btn ${folderPath.length === 0 ? 'current' : ''}`}
+                  onClick={() => {
+                    hapticLight();
+                    onClose();
+                    if (onNavigateFolder) onNavigateFolder(null);
+                  }}
+                  title="Main Vault Root"
+                >
+                  Vault
+                </button>
+                {folderPath.map((crumb, idx) => {
+                  const isCurrent = idx === folderPath.length - 1;
+                  return (
+                    <React.Fragment key={crumb.id || idx}>
+                      <ChevronRight size={11} className="preview-crumb-sep" />
+                      <button 
+                        type="button" 
+                        className={`preview-crumb-btn ${isCurrent ? 'current' : ''}`}
+                        onClick={() => {
+                          hapticLight();
+                          onClose();
+                          if (onNavigateFolder) onNavigateFolder(crumb.id);
+                        }}
+                        title={`Folder: ${crumb.name}`}
+                      >
+                        {crumb.name}
+                      </button>
+                    </React.Fragment>
+                  );
+                })}
+              </div>
+            </div>
+
+            <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
               Type: {(cat || doc.type || 'FILE').toUpperCase()} • Created on {new Date(doc.created_at).toLocaleDateString()}
             </span>
           </div>

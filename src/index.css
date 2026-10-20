@@ -483,7 +483,11 @@ body {
   overflow: hidden;
   word-break: break-word;
   animation: cardEnter 0.22s cubic-bezier(0.16, 1, 0.3, 1) backwards;
-  transition: transform 0.2s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.2s cubic-bezier(0.16, 1, 0.3, 1), border-color 0.2s ease;
+  transition: transform 0.2s cubic-bezier(0.16, 1, 0.3, 1), 
+              box-shadow 0.2s cubic-bezier(0.16, 1, 0.3, 1), 
+              border-color 0.2s ease, 
+              opacity 0.22s cubic-bezier(0.16, 1, 0.3, 1);
+  will-change: transform, opacity;
 }
 
 .card-item:hover {
@@ -504,12 +508,43 @@ body {
   cursor: grabbing;
 }
 
+.card-item.is-dragging {
+  opacity: 0.35 !important;
+  transform: scale(0.95) !important;
+  border-style: dashed !important;
+  border-color: var(--accent-primary) !important;
+  filter: grayscale(40%);
+  cursor: grabbing !important;
+}
+
 .card-item.drag-over {
   border-color: var(--accent-primary) !important;
   background: var(--accent-surface) !important;
-  transform: scale(1.03);
-  box-shadow: 0 8px 24px rgba(99, 102, 241, 0.25), 0 0 0 2px var(--accent-primary) !important;
-  transition: all 0.15s ease-out;
+  transform: scale(1.04) translateY(-2px) !important;
+  box-shadow: 0 0 0 2px var(--accent-primary), 0 12px 28px rgba(99, 102, 241, 0.3) !important;
+  transition: transform 0.18s cubic-bezier(0.16, 1, 0.3, 1), 
+              box-shadow 0.18s cubic-bezier(0.16, 1, 0.3, 1), 
+              background 0.18s ease !important;
+}
+
+@keyframes dropSuccessPulse {
+  0% {
+    transform: scale(1.04);
+    box-shadow: 0 0 0 3px #10b981, 0 8px 24px rgba(16, 185, 129, 0.4);
+  }
+  50% {
+    transform: scale(0.98);
+    box-shadow: 0 0 0 2px #10b981, 0 4px 12px rgba(16, 185, 129, 0.2);
+  }
+  100% {
+    transform: scale(1);
+    box-shadow: none;
+  }
+}
+
+.card-item.drop-success {
+  animation: dropSuccessPulse 0.45s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  border-color: #10b981 !important;
 }
 
 /* Breadcrumbs Drag Target */
@@ -3072,6 +3107,86 @@ body {
   border-radius: 0 0 var(--border-radius-sm) var(--border-radius-sm);
   background: var(--bg-primary);
   padding: 16px 20px;
+}
+
+/* Preview Modal Folder & Subfolder Path Bar */
+.preview-folder-path-bar {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  padding: 3px 8px;
+  border-radius: var(--border-radius-xs);
+  font-size: 11px;
+  max-width: 100%;
+  flex-wrap: wrap;
+  line-height: 1.4;
+}
+
+.preview-path-icon {
+  color: var(--accent-primary);
+  flex-shrink: 0;
+}
+
+.preview-path-label {
+  color: var(--text-muted);
+  font-weight: 500;
+  font-size: 11px;
+  user-select: none;
+}
+
+.preview-path-crumbs {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  flex-wrap: wrap;
+}
+
+.preview-crumb-btn {
+  background: transparent;
+  border: none;
+  padding: 1px 5px;
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--text-secondary);
+  border-radius: 3px;
+  cursor: pointer;
+  transition: var(--transition-smooth);
+  display: inline-flex;
+  align-items: center;
+}
+
+.preview-crumb-btn:hover {
+  color: var(--text-primary);
+  background: var(--hover-bg);
+}
+
+.preview-crumb-btn.current {
+  color: var(--accent-primary);
+  font-weight: 600;
+  background: rgba(99, 102, 241, 0.1);
+}
+
+.preview-crumb-sep {
+  color: var(--text-muted);
+  opacity: 0.6;
+  flex-shrink: 0;
+}
+
+.mobile-sheet-path-row {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11px;
+  color: var(--text-muted);
+  margin-top: 4px;
+}
+
+.mobile-sheet-path-text {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 
