@@ -70,7 +70,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
     // 2. Internal file or folder card move
     try {
-      const rawData = e.dataTransfer.getData('text/plain');
+      const rawData = e.dataTransfer.getData('application/x-keepspace-item') || e.dataTransfer.getData('text/plain');
       if (!rawData) return;
       const data = JSON.parse(rawData);
       if (data.id === targetId && data.isFolder) return;

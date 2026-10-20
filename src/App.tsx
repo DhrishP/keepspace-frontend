@@ -855,20 +855,20 @@ export default function App() {
     };
 
     const handleDragOver = (e: DragEvent) => {
+      e.preventDefault();
       if (isInternalDragRef.current) return;
       if (!e.dataTransfer) return;
       const types = Array.from(e.dataTransfer.types || []);
       if (types.includes('application/x-keepspace-item')) return;
 
       if (types.includes('Files')) {
-        e.preventDefault();
         e.dataTransfer.dropEffect = 'copy';
       }
     };
 
     const handleDragLeave = (e: DragEvent) => {
-      if (isInternalDragRef.current) return;
       e.preventDefault();
+      if (isInternalDragRef.current) return;
       dragCounterRef.current--;
       if (dragCounterRef.current <= 0) {
         dragCounterRef.current = 0;
@@ -877,6 +877,7 @@ export default function App() {
     };
 
     const handleDrop = async (e: DragEvent) => {
+      e.preventDefault();
       dragCounterRef.current = 0;
       setIsWindowDragging(false);
       if (isInternalDragRef.current) {
@@ -884,7 +885,6 @@ export default function App() {
         return;
       }
 
-      e.preventDefault();
       if (e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files.length > 0) {
         hapticSuccess();
         const droppedFiles = Array.from(e.dataTransfer.files);
@@ -1036,17 +1036,17 @@ export default function App() {
       
       if (res.ok) {
         addToast("Item moved successfully!");
-        fetchData();
+        fetchData({ silent: true });
         fetchStats();
         fetchSidebarFolders();
       } else {
         const err = await res.json();
         addToast(err.error || "Failed to move item", "error");
-        fetchData();
+        fetchData({ silent: true });
       }
     } catch (e) {
       addToast("Network error moving item", "error");
-      fetchData();
+      fetchData({ silent: true });
     }
   };
 

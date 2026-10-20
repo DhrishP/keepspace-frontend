@@ -140,8 +140,8 @@ export const DocumentCard: React.FC<DocumentCardProps> = ({
   };
 
   const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault();
     if (isFolder) {
-      e.preventDefault();
       e.stopPropagation();
       setIsDragOver(false);
 

@@ -47,9 +47,9 @@ export const FolderView: React.FC<FolderViewProps> = ({
   const [isDragOver, setIsDragOver] = React.useState(false);
 
   const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
     // Only accept drag if we are inside a subfolder (allow moving back to root)
     if (folderName !== null) {
-      e.preventDefault();
       e.dataTransfer.dropEffect = 'move';
     }
   };
@@ -67,11 +67,11 @@ export const FolderView: React.FC<FolderViewProps> = ({
   };
 
   const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragOver(false);
     if (folderName !== null) {
-      e.preventDefault();
-      setIsDragOver(false);
       try {
-        const rawData = e.dataTransfer.getData('text/plain');
+        const rawData = e.dataTransfer.getData('application/x-keepspace-item') || e.dataTransfer.getData('text/plain');
         if (!rawData) return;
         const draggedData = JSON.parse(rawData);
         if (onMoveItem) {
