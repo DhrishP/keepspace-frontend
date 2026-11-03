@@ -36,6 +36,7 @@ interface DocumentCardProps {
   onOpenItemSheet?: (item: any, isFolder: boolean) => void;
   onUploadFiles?: (files: FileList | File[], parentId?: string | null) => Promise<void>;
   onCopyImage?: (item: any) => void;
+  onPrefetchFolder?: (folderId: string) => void;
 }
 
 export const DocumentCard: React.FC<DocumentCardProps> = ({
@@ -51,6 +52,7 @@ export const DocumentCard: React.FC<DocumentCardProps> = ({
   onOpenItemSheet,
   onUploadFiles,
   onCopyImage,
+  onPrefetchFolder,
 }) => {
   const [isDragOver, setIsDragOver] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
@@ -65,6 +67,9 @@ export const DocumentCard: React.FC<DocumentCardProps> = ({
   const touchStartPosRef = useRef<{ x: number; y: number } | null>(null);
 
   const handleMouseEnterFolder = () => {
+    if (onPrefetchFolder) {
+      onPrefetchFolder(item.id);
+    }
     if (leaveTimerRef.current) {
       clearTimeout(leaveTimerRef.current);
       leaveTimerRef.current = null;
@@ -75,6 +80,13 @@ export const DocumentCard: React.FC<DocumentCardProps> = ({
       }
       setIsFolderHovered(true);
     }, 180);
+  };
+
+  const handleMouseEnterFile = () => {
+    if (item.type === 'image') {
+      const img = new Image();
+      img.src = `${API_BASE_URL}/api/documents/${item.id}/download`;
+    }
   };
 
   const handleMouseLeaveFolder = () => {
@@ -338,6 +350,7 @@ export const DocumentCard: React.FC<DocumentCardProps> = ({
     <div 
       className={`card-item card-file ${isDragging ? 'is-dragging' : ''}`} 
       onClick={() => onPreview(item)}
+      onMouseEnter={handleMouseEnterFile}
       draggable={true}
       onDragStart={handleDragStart}
       onDragEnd={handleDragEnd}

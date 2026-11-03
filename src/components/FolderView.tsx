@@ -23,6 +23,7 @@ interface FolderViewProps {
   onOpenItemSheet?: (item: any, isFolder: boolean) => void;
   onUploadFiles?: (files: FileList | File[], parentId?: string | null) => Promise<void>;
   onCopyImage?: (item: any) => void;
+  onPrefetchFolder?: (folderId: string) => void;
 }
 
 export const FolderView: React.FC<FolderViewProps> = ({
@@ -45,6 +46,7 @@ export const FolderView: React.FC<FolderViewProps> = ({
   onOpenItemSheet,
   onUploadFiles,
   onCopyImage,
+  onPrefetchFolder,
 }) => {
   const [isDragOver, setIsDragOver] = React.useState(false);
 
@@ -210,6 +212,7 @@ export const FolderView: React.FC<FolderViewProps> = ({
                     onMoveItem={onMoveItem}
                     onUploadFiles={onUploadFiles}
                     onOpenItemSheet={onOpenItemSheet}
+                    onPrefetchFolder={onPrefetchFolder}
                   />
                 ))}
               </div>

@@ -24,6 +24,17 @@ import { compressImageIfNeeded } from './utils/imageCompressor';
 import { copyImageToClipboard } from './utils/clipboard';
 import { createFileSlug, extractDocIdFromParam } from './utils/fileSlug';
 
+interface CachedVaultData {
+  folder: any;
+  breadcrumbs: any[];
+  subfolders: any[];
+  documents: any[];
+  timestamp: number;
+}
+
+// Module-level in-memory cache for instant (0ms) folder navigation & SWR
+const inMemoryVaultCache = new Map<string, CachedVaultData>();
+
 export default function App() {
   const { isOnline, canInstall, triggerInstall } = usePWA();
   
@@ -295,6 +306,43 @@ export default function App() {
 
     const cacheKey = effectiveFolderId ? `folder_${effectiveFolderId}` : `tab_${effectiveTab}`;
 
+    // 1. Instant In-Memory Cache Paint (0ms)
+    const memCache = inMemoryVaultCache.get(cacheKey);
+    let hasRenderedFromCache = false;
+    if (memCache) {
+      setFolderName(memCache.folder ? memCache.folder.name : null);
+      setBreadcrumbs(memCache.breadcrumbs || []);
+      setFolders(memCache.subfolders || []);
+      setDocuments(memCache.documents || []);
+      setIsLoading(false);
+      hasRenderedFromCache = true;
+    }
+
+    // 2. Fallback to fast IndexedDB before showing skeleton
+    if (!hasRenderedFromCache && !isSilent) {
+      const cached = await getLocalVault(cacheKey);
+      if (cached && fetchId === activeFetchIdRef.current) {
+        setFolderName(cached.folder ? cached.folder.name : null);
+        setBreadcrumbs(cached.breadcrumbs || []);
+        setFolders(cached.subfolders || []);
+        setDocuments(cached.documents || []);
+        setIsLoading(false);
+        inMemoryVaultCache.set(cacheKey, {
+          folder: cached.folder || null,
+          breadcrumbs: cached.breadcrumbs || [],
+          subfolders: cached.subfolders || [],
+          documents: cached.documents || [],
+          timestamp: Date.now()
+        });
+        hasRenderedFromCache = true;
+      }
+    }
+
+    // If rendered from cache, quietly revalidate in background (SWR)
+    if (hasRenderedFromCache) {
+      isSilent = true;
+    }
+
     if (!isSilent) {
       setIsLoading(true);
     } else {
@@ -337,6 +385,15 @@ export default function App() {
         setFolders(allSubfolders);
         setDocuments(allDocs);
 
+        // Update in-memory & IndexedDB caches
+        inMemoryVaultCache.set(cacheKey, {
+          folder: data.folder || null,
+          breadcrumbs: data.breadcrumbs || [],
+          subfolders: allSubfolders,
+          documents: allDocs,
+          timestamp: Date.now()
+        });
+
         await saveLocalVault(cacheKey, {
           folder: data.folder || null,
           breadcrumbs: data.breadcrumbs || [],
@@ -375,6 +432,14 @@ export default function App() {
     }
   }, [addToast]);
 
+  // Folder hover prefetch handler
+  const handlePrefetchFolder = useCallback((folderId: string) => {
+    const cacheKey = `folder_${folderId}`;
+    if (!inMemoryVaultCache.has(cacheKey)) {
+      fetchData(folderId, 'all', { silent: true });
+    }
+  }, [fetchData]);
+
   // Navigation helpers with History pushState for PWA swipe-back support
   const handleNavigateFolder = useCallback((folderId: string | null) => {
     if (document.activeElement instanceof HTMLElement) {
@@ -391,7 +456,20 @@ export default function App() {
     }
     setCurrentFolderId(folderId);
     setCurrentTab('all');
-    fetchData(folderId, 'all');
+
+    // Instant paint if in memory
+    const cacheKey = folderId ? `folder_${folderId}` : `tab_all`;
+    const memCache = inMemoryVaultCache.get(cacheKey);
+    if (memCache) {
+      setFolderName(memCache.folder ? memCache.folder.name : null);
+      setBreadcrumbs(memCache.breadcrumbs || []);
+      setFolders(memCache.subfolders || []);
+      setDocuments(memCache.documents || []);
+      setIsLoading(false);
+      fetchData(folderId, 'all', { silent: true });
+    } else {
+      fetchData(folderId, 'all');
+    }
   }, [fetchData]);
 
   const handleSelectTab = useCallback((tab: string) => {
@@ -409,7 +487,20 @@ export default function App() {
     }
     setCurrentFolderId(null);
     setCurrentTab(tab);
-    fetchData(null, tab);
+
+    // Instant paint if in memory
+    const cacheKey = `tab_${tab}`;
+    const memCache = inMemoryVaultCache.get(cacheKey);
+    if (memCache) {
+      setFolderName(null);
+      setBreadcrumbs([]);
+      setFolders(memCache.subfolders || []);
+      setDocuments(memCache.documents || []);
+      setIsLoading(false);
+      fetchData(null, tab, { silent: true });
+    } else {
+      fetchData(null, tab);
+    }
   }, [fetchData]);
 
   // Copy Image to clipboard handler
@@ -514,15 +605,45 @@ export default function App() {
       if (folderParam) {
         setCurrentFolderId(folderParam);
         setCurrentTab('all');
-        fetchData(folderParam, 'all');
+        const memCache = inMemoryVaultCache.get(`folder_${folderParam}`);
+        if (memCache) {
+          setFolderName(memCache.folder ? memCache.folder.name : null);
+          setBreadcrumbs(memCache.breadcrumbs || []);
+          setFolders(memCache.subfolders || []);
+          setDocuments(memCache.documents || []);
+          setIsLoading(false);
+          fetchData(folderParam, 'all', { silent: true });
+        } else {
+          fetchData(folderParam, 'all');
+        }
       } else if (tabParam) {
         setCurrentFolderId(null);
         setCurrentTab(tabParam);
-        fetchData(null, tabParam);
+        const memCache = inMemoryVaultCache.get(`tab_${tabParam}`);
+        if (memCache) {
+          setFolderName(null);
+          setBreadcrumbs([]);
+          setFolders(memCache.subfolders || []);
+          setDocuments(memCache.documents || []);
+          setIsLoading(false);
+          fetchData(null, tabParam, { silent: true });
+        } else {
+          fetchData(null, tabParam);
+        }
       } else if (!isSearch && !fileParam && !isShare) {
         setCurrentFolderId(null);
         setCurrentTab('all');
-        fetchData(null, 'all');
+        const memCache = inMemoryVaultCache.get(`tab_all`);
+        if (memCache) {
+          setFolderName(null);
+          setBreadcrumbs([]);
+          setFolders(memCache.subfolders || []);
+          setDocuments(memCache.documents || []);
+          setIsLoading(false);
+          fetchData(null, 'all', { silent: true });
+        } else {
+          fetchData(null, 'all');
+        }
       }
     };
 
@@ -1328,6 +1449,7 @@ export default function App() {
         onLogout={handleLogout}
         onMoveItem={handleMoveItem}
         onUploadFiles={handleUploadFiles}
+        onPrefetchFolder={handlePrefetchFolder}
       />
 
       {/* Sidebar Overlay backdrop for mobile */}
@@ -1433,6 +1555,7 @@ export default function App() {
           onShare={handleOpenShare}
           onOpenItemSheet={handleOpenItemSheet}
           onCopyImage={handleCopyImage}
+          onPrefetchFolder={handlePrefetchFolder}
         />
       </main>
 

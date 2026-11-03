@@ -36,6 +36,7 @@ interface SidebarProps {
   onLogout: () => void;
   onMoveItem?: (itemId: string, isFolderItem: boolean, targetFolderId: string | null) => void;
   onUploadFiles?: (files: FileList | File[], parentId?: string | null) => Promise<void>;
+  onPrefetchFolder?: (folderId: string) => void;
 }
 
 export const Sidebar: React.FC<SidebarProps> = ({
@@ -53,6 +54,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   onLogout,
   onMoveItem,
   onUploadFiles,
+  onPrefetchFolder,
 }) => {
   const [dragOverTargetId, setDragOverTargetId] = React.useState<string | null>(null);
   const [hoveredFolder, setHoveredFolder] = useState<{ id: string; name: string; rect: DOMRect } | null>(null);
@@ -60,6 +62,9 @@ export const Sidebar: React.FC<SidebarProps> = ({
   const leaveTimerRef = useRef<NodeJS.Timeout | null>(null);
 
   const handleMouseEnterSidebarFolder = (e: React.MouseEvent<HTMLDivElement>, folder: any) => {
+    if (onPrefetchFolder) {
+      onPrefetchFolder(folder.id);
+    }
     if (leaveTimerRef.current) {
       clearTimeout(leaveTimerRef.current);
       leaveTimerRef.current = null;
