@@ -64,3 +64,4 @@ export async function copyImageToClipboard(imageUrl: string): Promise<{ type: 'b
 
   throw new Error("Clipboard API not available in this browser environment");
 }
+

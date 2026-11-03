@@ -17,8 +17,6 @@ import {
   FileSpreadsheet,
   Code,
   Search,
-  FileEdit,
-  Save,
   Folder,
   ChevronRight,
   Columns,
@@ -80,9 +78,7 @@ export const FilePreview: React.FC<FilePreviewProps> = ({
   const [isSavingContent, setIsSavingContent] = useState(false);
   const [saveStatus, setSaveStatus] = useState<'saved' | 'saving' | 'unsaved' | 'error'>('saved');
   const [lastSavedTime, setLastSavedTime] = useState<string>('');
-  const [mdViewMode, setMdViewMode] = useState<'split' | 'edit' | 'rendered'>(() => {
-    return typeof window !== 'undefined' && window.innerWidth > 850 ? 'split' : 'edit';
-  });
+  const [mdViewMode, setMdViewMode] = useState<'split' | 'rendered'>('split');
   const autosaveTimerRef = useRef<NodeJS.Timeout | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
@@ -677,7 +673,7 @@ export const FilePreview: React.FC<FilePreviewProps> = ({
                 <div className="preview-view-toggle">
                   <button 
                     type="button"
-                    className={`preview-toggle-btn ${mdViewMode === 'split' ? 'active' : ''} desktop-only`}
+                    className={`preview-toggle-btn ${mdViewMode === 'split' ? 'active' : ''}`}
                     onClick={() => {
                       hapticLight();
                       setMdViewMode('split');
@@ -686,18 +682,6 @@ export const FilePreview: React.FC<FilePreviewProps> = ({
                   >
                     <Columns size={13} />
                     <span>Split View</span>
-                  </button>
-                  <button 
-                    type="button"
-                    className={`preview-toggle-btn ${mdViewMode === 'edit' ? 'active' : ''}`}
-                    onClick={() => {
-                      hapticLight();
-                      setMdViewMode('edit');
-                    }}
-                    title="Edit Markdown Note"
-                  >
-                    <FileEdit size={13} />
-                    <span>Edit</span>
                   </button>
                   <button 
                     type="button"
@@ -747,17 +731,6 @@ export const FilePreview: React.FC<FilePreviewProps> = ({
             <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
               <button 
                 type="button" 
-                className="btn btn-primary btn-sm"
-                onClick={() => saveContent(editedContent, false)}
-                disabled={isSavingContent || saveStatus === 'saved'}
-                style={{ padding: '4px 10px', fontSize: '12px', gap: '5px' }}
-                title="Save changes immediately (Cmd+S)"
-              >
-                {isSavingContent ? <Loader2 size={13} className="spin-icon" /> : <Save size={13} />}
-                <span>Save</span>
-              </button>
-              <button 
-                type="button" 
                 className="preview-toolbar-btn"
                 onClick={() => {
                   if (editedContent) {
@@ -784,8 +757,8 @@ export const FilePreview: React.FC<FilePreviewProps> = ({
             </div>
           </div>
 
-          {/* Quick Markdown Formatting Toolbar (Shown in edit or split mode) */}
-          {isMarkdown && (mdViewMode === 'edit' || mdViewMode === 'split') && (
+          {/* Quick Markdown Formatting Toolbar (Shown in split mode) */}
+          {isMarkdown && mdViewMode === 'split' && (
             <div className="editor-quick-toolbar">
               <button type="button" className="toolbar-icon-btn" onClick={() => insertMarkdown('**', '**')} title="Bold (**text**)">
                 <Bold size={13} />
