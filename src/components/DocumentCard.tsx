@@ -57,6 +57,8 @@ export const DocumentCard: React.FC<DocumentCardProps> = ({
   const [isDropSuccess, setIsDropSuccess] = useState(false);
   const [isDownloading, setIsDownloading] = useState(false);
   const [isFolderHovered, setIsFolderHovered] = useState(false);
+  const [anchorRect, setAnchorRect] = useState<DOMRect | null>(null);
+  const folderCardRef = useRef<HTMLDivElement>(null);
   const hoverTimerRef = useRef<NodeJS.Timeout | null>(null);
   const leaveTimerRef = useRef<NodeJS.Timeout | null>(null);
   const touchTimerRef = useRef<NodeJS.Timeout | null>(null);
@@ -68,6 +70,9 @@ export const DocumentCard: React.FC<DocumentCardProps> = ({
       leaveTimerRef.current = null;
     }
     hoverTimerRef.current = setTimeout(() => {
+      if (folderCardRef.current) {
+        setAnchorRect(folderCardRef.current.getBoundingClientRect());
+      }
       setIsFolderHovered(true);
     }, 180);
   };
@@ -79,6 +84,7 @@ export const DocumentCard: React.FC<DocumentCardProps> = ({
     }
     leaveTimerRef.current = setTimeout(() => {
       setIsFolderHovered(false);
+      setAnchorRect(null);
     }, 220);
   };
 
@@ -221,7 +227,8 @@ export const DocumentCard: React.FC<DocumentCardProps> = ({
   if (isFolder) {
     return (
       <div 
-        className={`card-item card-folder ${isDragging ? 'is-dragging' : ''} ${isDragOver ? 'drag-over' : ''} ${isDropSuccess ? 'drop-success' : ''}`} 
+        ref={folderCardRef}
+        className={`card-item card-folder ${isFolderHovered ? 'folder-card-hovered' : ''} ${isDragging ? 'is-dragging' : ''} ${isDragOver ? 'drag-over' : ''} ${isDropSuccess ? 'drop-success' : ''}`} 
         onClick={() => onNavigate(item.id)}
         draggable={true}
         onDragStart={handleDragStart}
@@ -245,6 +252,7 @@ export const DocumentCard: React.FC<DocumentCardProps> = ({
           onMouseEnter={handleMouseEnterFolder}
           onMouseLeave={handleMouseLeaveFolder}
           position="bottom"
+          anchorRect={anchorRect}
         />
         <div className="card-icon-row">
           <div className="card-icon-box icon-folder">

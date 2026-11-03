@@ -22,6 +22,7 @@ import { API_BASE_URL } from './config';
 import { saveLocalVault, getLocalVault, saveLocalStats, getLocalStats } from './utils/localDb';
 import { compressImageIfNeeded } from './utils/imageCompressor';
 import { copyImageToClipboard } from './utils/clipboard';
+import { createFileSlug, extractDocIdFromParam } from './utils/fileSlug';
 
 export default function App() {
   const { isOnline, canInstall, triggerInstall } = usePWA();
@@ -181,7 +182,7 @@ export default function App() {
     documentsRef.current = documents;
   }, [documents]);
 
-  // Deep linking: Open preview & synchronize URL query param (?file=UUID)
+  // Deep linking: Open preview & synchronize human-readable URL query param (?file=slug-UUID)
   const handleOpenPreview = useCallback((doc: any) => {
     if (document.activeElement instanceof HTMLElement) {
       document.activeElement.blur();
@@ -191,8 +192,10 @@ export default function App() {
     previewDocRef.current = doc;
 
     const currentUrl = new URL(window.location.href);
-    currentUrl.searchParams.set('file', doc.id);
-    window.history.pushState({ modal: 'preview', fileId: doc.id }, '', currentUrl.pathname + currentUrl.search + window.location.hash);
+    const slug = createFileSlug(doc.name);
+    const fileParam = `${slug}-${doc.id}`;
+    currentUrl.searchParams.set('file', fileParam);
+    window.history.pushState({ modal: 'preview', fileId: doc.id, fileParam }, '', currentUrl.pathname + currentUrl.search + window.location.hash);
   }, []);
 
   // Close preview & remove ?file=UUID from URL
@@ -252,6 +255,126 @@ export default function App() {
     }
   }, []);
 
+  // Ref tracking active fetch sequence to prevent race conditions & stuck skeletons
+  const activeFetchIdRef = useRef<number>(0);
+  const currentFolderIdRef = useRef<string | null>(currentFolderId);
+  useEffect(() => {
+    currentFolderIdRef.current = currentFolderId;
+  }, [currentFolderId]);
+
+  const currentTabRef = useRef<string>(currentTab);
+  useEffect(() => {
+    currentTabRef.current = currentTab;
+  }, [currentTab]);
+
+  // Main Fetch: folders, breadcrumbs, items inside target folder or tab
+  const fetchData = useCallback(async (
+    targetFolderIdOrOptions?: string | null | { silent?: boolean },
+    targetTab?: string,
+    options?: { silent?: boolean }
+  ) => {
+    const fetchId = ++activeFetchIdRef.current;
+    
+    let effectiveFolderId: string | null = currentFolderIdRef.current;
+    let effectiveTab: string = currentTabRef.current;
+    let isSilent = false;
+
+    if (targetFolderIdOrOptions !== undefined && targetFolderIdOrOptions !== null && typeof targetFolderIdOrOptions === 'object') {
+      isSilent = Boolean(targetFolderIdOrOptions.silent);
+    } else {
+      if (targetFolderIdOrOptions !== undefined) {
+        effectiveFolderId = targetFolderIdOrOptions;
+      }
+      if (targetTab !== undefined) {
+        effectiveTab = targetTab;
+      }
+      if (options?.silent) {
+        isSilent = true;
+      }
+    }
+
+    const cacheKey = effectiveFolderId ? `folder_${effectiveFolderId}` : `tab_${effectiveTab}`;
+
+    if (!isSilent) {
+      setIsLoading(true);
+    } else {
+      setIsRefreshing(true);
+    }
+
+    try {
+      let url = `${API_BASE_URL}/api/folders`;
+      if (effectiveFolderId) {
+        url = `${API_BASE_URL}/api/folders/${effectiveFolderId}`;
+      } else if (effectiveTab === 'favorites') {
+        url = `${API_BASE_URL}/api/search`;
+      } else if (effectiveTab !== 'all') {
+        url = `${API_BASE_URL}/api/search?type=${effectiveTab}`;
+      }
+
+      const res = await fetch(url);
+      if (fetchId !== activeFetchIdRef.current) return;
+
+      if (res.ok) {
+        const data = await res.json();
+        if (fetchId !== activeFetchIdRef.current) return;
+
+        setFolderName(data.folder ? data.folder.name : null);
+        setBreadcrumbs(data.breadcrumbs || []);
+
+        let allSubfolders = data.subfolders || data.folders || [];
+        let allDocs = data.documents || [];
+
+        if (!effectiveFolderId) {
+          if (effectiveTab === 'favorites') {
+            allDocs = allDocs.filter((d: any) => d.favorite === 1);
+            allSubfolders = [];
+          } else if (effectiveTab !== 'all') {
+            allDocs = allDocs.filter((d: any) => d.type === effectiveTab);
+            allSubfolders = [];
+          }
+        }
+
+        setFolders(allSubfolders);
+        setDocuments(allDocs);
+
+        await saveLocalVault(cacheKey, {
+          folder: data.folder || null,
+          breadcrumbs: data.breadcrumbs || [],
+          subfolders: allSubfolders,
+          documents: allDocs
+        });
+      } else {
+        const cached = await getLocalVault(cacheKey);
+        if (cached && fetchId === activeFetchIdRef.current) {
+          setFolderName(cached.folder ? cached.folder.name : null);
+          setBreadcrumbs(cached.breadcrumbs || []);
+          setFolders(cached.subfolders || []);
+          setDocuments(cached.documents || []);
+        }
+      }
+    } catch (e) {
+      console.warn("API disconnect: loading cached vault layout...", e);
+      const cached = await getLocalVault(cacheKey);
+      if (cached && fetchId === activeFetchIdRef.current) {
+        setFolderName(cached.folder ? cached.folder.name : null);
+        setBreadcrumbs(cached.breadcrumbs || []);
+        setFolders(cached.subfolders || []);
+        setDocuments(cached.documents || []);
+        addToast("Offline mode: showing local cached vault details", "error");
+      } else if (fetchId === activeFetchIdRef.current) {
+        addToast("Offline mode: no local cache available for this view", "error");
+      }
+    } finally {
+      if (fetchId === activeFetchIdRef.current) {
+        if (isSilent) {
+          setIsRefreshing(false);
+        } else {
+          setIsLoading(false);
+        }
+      }
+    }
+  }, [addToast]);
+
   // Navigation helpers with History pushState for PWA swipe-back support
   const handleNavigateFolder = useCallback((folderId: string | null) => {
     if (document.activeElement instanceof HTMLElement) {
@@ -266,12 +389,10 @@ export default function App() {
     if (window.location.hash !== targetHash) {
       window.history.pushState({ folderId, tab: 'all' }, '', currentUrl.pathname + (currentUrl.search ? currentUrl.search : '') + (targetHash || ''));
     }
-    setFolders([]);
-    setDocuments([]);
-    setIsLoading(true);
     setCurrentFolderId(folderId);
     setCurrentTab('all');
-  }, []);
+    fetchData(folderId, 'all');
+  }, [fetchData]);
 
   const handleSelectTab = useCallback((tab: string) => {
     if (document.activeElement instanceof HTMLElement) {
@@ -286,12 +407,10 @@ export default function App() {
     if (window.location.hash !== targetHash) {
       window.history.pushState({ folderId: null, tab }, '', currentUrl.pathname + (currentUrl.search ? currentUrl.search : '') + (targetHash || ''));
     }
-    setFolders([]);
-    setDocuments([]);
-    setIsLoading(true);
     setCurrentFolderId(null);
     setCurrentTab(tab);
-  }, []);
+    fetchData(null, tab);
+  }, [fetchData]);
 
   // Copy Image to clipboard handler
   const handleCopyImage = useCallback(async (item: any) => {
@@ -339,10 +458,11 @@ export default function App() {
       const isSearch = hash === 'search';
       const isShare = hash === 'share';
 
-      // Deep linking / URL sync for file preview
+      // Deep linking / URL sync for file preview with slug and UUID extraction
       if (fileParam) {
-        if (previewDocRef.current?.id !== fileParam) {
-          const cachedDoc = documentsRef.current.find((d: any) => d.id === fileParam);
+        const docId = extractDocIdFromParam(fileParam);
+        if (previewDocRef.current?.id !== docId && previewDocRef.current?.id !== fileParam) {
+          const cachedDoc = documentsRef.current.find((d: any) => d.id === docId || d.id === fileParam || d.name?.toLowerCase().startsWith(fileParam.toLowerCase()));
           if (cachedDoc) {
             setPreviewDoc(cachedDoc);
             previewDocRef.current = cachedDoc;
@@ -394,12 +514,15 @@ export default function App() {
       if (folderParam) {
         setCurrentFolderId(folderParam);
         setCurrentTab('all');
+        fetchData(folderParam, 'all');
       } else if (tabParam) {
         setCurrentFolderId(null);
         setCurrentTab(tabParam);
+        fetchData(null, tabParam);
       } else if (!isSearch && !fileParam && !isShare) {
         setCurrentFolderId(null);
         setCurrentTab('all');
+        fetchData(null, 'all');
       }
     };
 
@@ -408,7 +531,7 @@ export default function App() {
 
     window.addEventListener('popstate', syncFromUrl);
     return () => window.removeEventListener('popstate', syncFromUrl);
-  }, [isAuthenticated, addToast]);
+  }, [isAuthenticated, addToast, fetchData]);
 
   // Fetch Stats
   const fetchStats = async () => {
@@ -428,85 +551,11 @@ export default function App() {
     }
   };
 
-  // Main Fetch: folders, breadcrumbs, items inside current folder or tab
-  const fetchData = async (options?: { silent?: boolean }) => {
-    const isSilent = options?.silent ?? false;
-    const cacheKey = currentFolderId ? `folder_${currentFolderId}` : `tab_${currentTab}`;
-    
-    if (isSilent) {
-      setIsRefreshing(true);
-    } else {
-      setIsLoading(true);
-    }
-
-    try {
-      let url = `${API_BASE_URL}/api/folders`;
-      if (currentFolderId) {
-        url = `${API_BASE_URL}/api/folders/${currentFolderId}`;
-      } else if (currentTab === 'favorites') {
-        url = `${API_BASE_URL}/api/search`;
-      } else if (currentTab !== 'all') {
-        url = `${API_BASE_URL}/api/search?type=${currentTab}`;
-      }
-      
-      const res = await fetch(url);
-      if (res.ok) {
-        const data = await res.json();
-        setFolderName(data.folder ? data.folder.name : null);
-        setBreadcrumbs(data.breadcrumbs || []);
-        
-        // Filter folders/files depending on search query or tab filters
-        let allSubfolders = data.subfolders || data.folders || [];
-        let allDocs = data.documents || [];
-
-        // Apply Tab filters
-        if (!currentFolderId) {
-          if (currentTab === 'favorites') {
-            allDocs = allDocs.filter((d: any) => d.favorite === 1);
-            allSubfolders = [];
-          } else if (currentTab !== 'all') {
-            allDocs = allDocs.filter((d: any) => d.type === currentTab);
-            allSubfolders = [];
-          }
-        }
-        
-        setFolders(allSubfolders);
-        setDocuments(allDocs);
-
-        // Store fetched layout locally
-        await saveLocalVault(cacheKey, {
-          folder: data.folder || null,
-          breadcrumbs: data.breadcrumbs || [],
-          subfolders: allSubfolders,
-          documents: allDocs
-        });
-      }
-    } catch (e) {
-      console.warn("API disconnect: loading cached vault layout...");
-      const cached = await getLocalVault(cacheKey);
-      if (cached) {
-        setFolderName(cached.folder ? cached.folder.name : null);
-        setBreadcrumbs(cached.breadcrumbs || []);
-        setFolders(cached.subfolders || []);
-        setDocuments(cached.documents || []);
-        addToast("Offline mode: showing local cached vault details", "error");
-      } else {
-        addToast("Offline mode: no local cache available for this view", "error");
-      }
-    } finally {
-      if (isSilent) {
-        setIsRefreshing(false);
-      } else {
-        setIsLoading(false);
-      }
-    }
-  };
-
   // Global Search Fetch
   const handleSearch = async (query: string) => {
     setSearchQuery(query);
     if (!query.trim()) {
-      fetchData();
+      fetchData(currentFolderId, currentTab);
       return;
     }
     
@@ -536,7 +585,6 @@ export default function App() {
   };
 
   useEffect(() => {
-    fetchData();
     fetchStats();
     fetchSidebarFolders();
   }, [currentFolderId, currentTab]);

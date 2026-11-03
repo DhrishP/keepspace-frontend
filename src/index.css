@@ -3233,6 +3233,11 @@ body {
   overflow: visible !important;
 }
 
+.card-folder.folder-card-hovered {
+  z-index: 100 !important;
+  position: relative;
+}
+
 .folder-hover-card {
   position: absolute;
   background: var(--card-bg);
@@ -3241,7 +3246,7 @@ body {
   box-shadow: 0 14px 34px rgba(0, 0, 0, 0.28), 0 0 0 1px var(--border-color);
   width: 250px;
   max-width: 300px;
-  z-index: 500;
+  z-index: 9999 !important;
   padding: 10px;
   display: flex;
   flex-direction: column;

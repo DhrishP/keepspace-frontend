@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { Folder, ChevronRight, Loader2, FolderTree } from 'lucide-react';
 import { API_BASE_URL } from '../config';
 import { hapticLight } from '../utils/haptics';
@@ -77,16 +78,37 @@ export const FolderHoverCard: React.FC<FolderHoverCardProps> = ({
 
   if (!isOpen) return null;
 
-  const fixedStyle: React.CSSProperties | undefined = anchorRect
-    ? {
-        position: 'fixed',
-        top: `${Math.max(12, Math.min(anchorRect.top, (typeof window !== 'undefined' ? window.innerHeight : 800) - 260))}px`,
-        left: `${anchorRect.right + 8}px`,
-        zIndex: 1100,
-      }
-    : undefined;
+  const viewportHeight = typeof window !== 'undefined' ? window.innerHeight : 800;
+  const viewportWidth = typeof window !== 'undefined' ? window.innerWidth : 1200;
 
-  return (
+  let fixedStyle: React.CSSProperties | undefined = undefined;
+
+  if (anchorRect) {
+    if (position === 'right') {
+      fixedStyle = {
+        position: 'fixed',
+        top: `${Math.max(12, Math.min(anchorRect.top, viewportHeight - 260))}px`,
+        left: `${anchorRect.right + 8}px`,
+        zIndex: 99999,
+        pointerEvents: 'auto',
+      };
+    } else {
+      let top = anchorRect.bottom + 4;
+      if (top + 240 > viewportHeight && anchorRect.top > 250) {
+        top = Math.max(12, anchorRect.top - 240);
+      }
+      const left = Math.max(12, Math.min(anchorRect.left, viewportWidth - 270));
+      fixedStyle = {
+        position: 'fixed',
+        top: `${top}px`,
+        left: `${left}px`,
+        zIndex: 99999,
+        pointerEvents: 'auto',
+      };
+    }
+  }
+
+  const cardContent = (
     <div 
       className={`folder-hover-card folder-hover-pos-${position}`}
       style={fixedStyle}
@@ -144,4 +166,10 @@ export const FolderHoverCard: React.FC<FolderHoverCardProps> = ({
       </div>
     </div>
   );
+
+  if (anchorRect && typeof document !== 'undefined') {
+    return createPortal(cardContent, document.body);
+  }
+
+  return cardContent;
 };
