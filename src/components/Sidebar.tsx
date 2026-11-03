@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useRef } from 'react';
 import { 
   Folder, 
   FolderPlus, 
@@ -15,6 +15,7 @@ import {
   X,
   Lock
 } from 'lucide-react';
+import { FolderHoverCard } from './FolderHoverCard';
 
 interface SidebarProps {
   sidebarOpen: boolean;
@@ -54,6 +55,30 @@ export const Sidebar: React.FC<SidebarProps> = ({
   onUploadFiles,
 }) => {
   const [dragOverTargetId, setDragOverTargetId] = React.useState<string | null>(null);
+  const [hoveredFolder, setHoveredFolder] = useState<{ id: string; name: string; rect: DOMRect } | null>(null);
+  const hoverTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const leaveTimerRef = useRef<NodeJS.Timeout | null>(null);
+
+  const handleMouseEnterSidebarFolder = (e: React.MouseEvent<HTMLDivElement>, folder: any) => {
+    if (leaveTimerRef.current) {
+      clearTimeout(leaveTimerRef.current);
+      leaveTimerRef.current = null;
+    }
+    const rect = e.currentTarget.getBoundingClientRect();
+    hoverTimerRef.current = setTimeout(() => {
+      setHoveredFolder({ id: folder.id, name: folder.name, rect });
+    }, 200);
+  };
+
+  const handleMouseLeaveSidebarFolder = () => {
+    if (hoverTimerRef.current) {
+      clearTimeout(hoverTimerRef.current);
+      hoverTimerRef.current = null;
+    }
+    leaveTimerRef.current = setTimeout(() => {
+      setHoveredFolder(null);
+    }, 200);
+  };
 
   const handleDropOnTarget = (e: React.DragEvent, targetId: string | null) => {
     e.preventDefault();
@@ -178,9 +203,12 @@ export const Sidebar: React.FC<SidebarProps> = ({
                   key={folder.id}
                   className={`folder-tree-node ${currentFolderId === folder.id ? 'active' : ''} ${isOverFolder ? 'sidebar-drop-active' : ''}`}
                   onClick={() => {
+                    setHoveredFolder(null);
                     setCurrentFolderId(folder.id);
                     setCurrentTab('all');
                   }}
+                  onMouseEnter={(e) => handleMouseEnterSidebarFolder(e, folder)}
+                  onMouseLeave={handleMouseLeaveSidebarFolder}
                   onDragOver={(e) => {
                     e.preventDefault();
                     e.stopPropagation();
@@ -210,6 +238,29 @@ export const Sidebar: React.FC<SidebarProps> = ({
             })
           )}
         </div>
+
+        {/* Floating Subfolder Hover Preview */}
+        {hoveredFolder && (
+          <FolderHoverCard
+            folderId={hoveredFolder.id}
+            folderName={hoveredFolder.name}
+            isOpen={true}
+            onNavigate={(fId) => {
+              setHoveredFolder(null);
+              setCurrentFolderId(fId);
+              setCurrentTab('all');
+            }}
+            onMouseEnter={() => {
+              if (leaveTimerRef.current) {
+                clearTimeout(leaveTimerRef.current);
+                leaveTimerRef.current = null;
+              }
+            }}
+            onMouseLeave={handleMouseLeaveSidebarFolder}
+            position="right"
+            anchorRect={hoveredFolder.rect}
+          />
+        )}
 
         {canInstall && (
           <div style={{ marginTop: 'auto', padding: '10px 0' }}>

@@ -22,6 +22,7 @@ interface FolderViewProps {
   onRename?: (id: string, isFolder: boolean, currentName: string) => void;
   onOpenItemSheet?: (item: any, isFolder: boolean) => void;
   onUploadFiles?: (files: FileList | File[], parentId?: string | null) => Promise<void>;
+  onCopyImage?: (item: any) => void;
 }
 
 export const FolderView: React.FC<FolderViewProps> = ({
@@ -43,6 +44,7 @@ export const FolderView: React.FC<FolderViewProps> = ({
   onRename,
   onOpenItemSheet,
   onUploadFiles,
+  onCopyImage,
 }) => {
   const [isDragOver, setIsDragOver] = React.useState(false);
 
@@ -232,6 +234,7 @@ export const FolderView: React.FC<FolderViewProps> = ({
                     onMoveItem={onMoveItem}
                     onShare={onShare}
                     onOpenItemSheet={onOpenItemSheet}
+                    onCopyImage={onCopyImage}
                   />
                 ))}
               </div>

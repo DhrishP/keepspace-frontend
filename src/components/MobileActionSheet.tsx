@@ -12,6 +12,7 @@ interface MobileActionSheetProps {
   onPastePhoto?: (files: File[]) => void;
   currentFolderId: string | null;
   currentFolderName: string | null;
+  onAddToast?: (text: string, type?: 'success' | 'error') => void;
 }
 
 export const MobileActionSheet: React.FC<MobileActionSheetProps> = ({
@@ -22,6 +23,7 @@ export const MobileActionSheet: React.FC<MobileActionSheetProps> = ({
   onPastePhoto,
   currentFolderId,
   currentFolderName,
+  onAddToast,
 }) => {
   const cameraInputRef = useRef<HTMLInputElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -155,7 +157,9 @@ export const MobileActionSheet: React.FC<MobileActionSheetProps> = ({
               hapticSelection();
               try {
                 if (!navigator.clipboard || !navigator.clipboard.read) {
-                  alert('Clipboard API not supported in this browser. Try copying a photo and using Ctrl+V on desktop.');
+                  if (onAddToast) {
+                    onAddToast('Clipboard API not supported in this browser. Try copying a photo and using Ctrl+V on desktop.', 'error');
+                  }
                   return;
                 }
                 const clipboardItems = await navigator.clipboard.read();
@@ -177,17 +181,26 @@ export const MobileActionSheet: React.FC<MobileActionSheetProps> = ({
                 if (pastedFiles.length > 0) {
                   hapticSuccess();
                   onClose();
+                  if (onAddToast) {
+                    onAddToast(`Pasting ${pastedFiles.length} photo(s)...`);
+                  }
                   if (onPastePhoto) {
                     onPastePhoto(pastedFiles);
                   }
                 } else {
-                  alert('No image found in clipboard. Copy a photo first, then tap Paste Photo.');
+                  if (onAddToast) {
+                    onAddToast('No image found in clipboard. Copy a photo first.', 'error');
+                  }
                 }
               } catch (err: any) {
                 if (err.name === 'NotAllowedError') {
-                  alert('Clipboard permission denied. Please allow clipboard access and try again.');
+                  if (onAddToast) {
+                    onAddToast('Clipboard permission denied. Please allow clipboard access.', 'error');
+                  }
                 } else {
-                  alert('No image found in clipboard. Copy a photo first.');
+                  if (onAddToast) {
+                    onAddToast('No image found in clipboard. Copy a photo first.', 'error');
+                  }
                 }
               }
             }}

@@ -20,7 +20,16 @@ import {
   FileEdit,
   Save,
   Folder,
-  ChevronRight
+  ChevronRight,
+  Columns,
+  Bold,
+  Italic,
+  Heading,
+  List,
+  CheckSquare,
+  Quote,
+  CheckCircle2,
+  AlertTriangle
 } from 'lucide-react';
 import { marked } from 'marked';
 import { renderAsync } from 'docx-preview';
@@ -29,12 +38,15 @@ import { API_BASE_URL } from '../config';
 import { downloadDocument } from '../utils/download';
 import { hapticLight, hapticSuccess } from '../utils/haptics';
 import { getFileCategory } from '../utils/fileType';
+import { copyImageToClipboard } from '../utils/clipboard';
 
 interface FilePreviewProps {
   document: any;
   onClose: () => void;
   onUpdateDescription: (id: string, description: string) => Promise<void>;
   onNavigateFolder?: (folderId: string | null) => void;
+  onAddToast?: (text: string, type?: 'success' | 'error') => void;
+  onContentSaved?: (id: string, newContent: string) => void;
 }
 
 const folderPathCache = new Map<string, { id: string; name: string }[]>();
@@ -44,6 +56,8 @@ export const FilePreview: React.FC<FilePreviewProps> = ({
   onClose,
   onUpdateDescription,
   onNavigateFolder,
+  onAddToast,
+  onContentSaved,
 }) => {
   const [desc, setDesc] = useState(doc.description || '');
   const [isEditing, setIsEditing] = useState(false);
@@ -62,9 +76,19 @@ export const FilePreview: React.FC<FilePreviewProps> = ({
   const [textContent, setTextContent] = useState<string | null>(null);
   const [isLoadingText, setIsLoadingText] = useState(false);
   const [isTextCopied, setIsTextCopied] = useState(false);
-  const [mdViewMode, setMdViewMode] = useState<'rendered' | 'raw' | 'edit'>('rendered');
   const [editedContent, setEditedContent] = useState('');
   const [isSavingContent, setIsSavingContent] = useState(false);
+  const [saveStatus, setSaveStatus] = useState<'saved' | 'saving' | 'unsaved' | 'error'>('saved');
+  const [lastSavedTime, setLastSavedTime] = useState<string>('');
+  const [mdViewMode, setMdViewMode] = useState<'split' | 'edit' | 'rendered'>(() => {
+    return typeof window !== 'undefined' && window.innerWidth > 850 ? 'split' : 'edit';
+  });
+  const autosaveTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  // Image Copy States
+  const [isImageCopied, setIsImageCopied] = useState(false);
+  const [isCopyingImage, setIsCopyingImage] = useState(false);
 
   // Web Link States
   const [linkViewMode, setLinkViewMode] = useState<'iframe' | 'card'>('iframe');
@@ -183,25 +207,120 @@ export const FilePreview: React.FC<FilePreviewProps> = ({
     }
   }, [doc.id, isTextOrCode]);
 
-  const handleSaveContent = async () => {
+  const saveContent = async (contentToSave: string, isSilent: boolean = false) => {
     if (isSavingContent) return;
     setIsSavingContent(true);
+    setSaveStatus('saving');
     try {
       const res = await fetch(`${API_BASE_URL}/api/documents/${doc.id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ content: editedContent })
+        body: JSON.stringify({ content: contentToSave })
       });
       if (!res.ok) throw new Error("Failed to save changes to document");
-      setTextContent(editedContent);
-      setMdViewMode('rendered');
+      setTextContent(contentToSave);
+      setSaveStatus('saved');
+      const now = new Date();
+      setLastSavedTime(now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }));
       hapticSuccess();
+      if (!isSilent && onAddToast) {
+        onAddToast("Note saved successfully!");
+      }
+      if (onContentSaved) {
+        onContentSaved(doc.id, contentToSave);
+      }
     } catch (err: any) {
       console.error("Save content error:", err);
-      alert("Failed to save note changes: " + (err.message || 'Unknown error'));
+      setSaveStatus('error');
+      if (onAddToast) {
+        onAddToast("Failed to save changes: " + (err.message || 'Unknown error'), 'error');
+      }
     } finally {
       setIsSavingContent(false);
     }
+  };
+
+  const handleContentChange = (newText: string) => {
+    setEditedContent(newText);
+    setSaveStatus('unsaved');
+    if (autosaveTimerRef.current) {
+      clearTimeout(autosaveTimerRef.current);
+    }
+    autosaveTimerRef.current = setTimeout(() => {
+      saveContent(newText, true);
+    }, 1000);
+  };
+
+  const handleTextareaBlur = () => {
+    if (saveStatus === 'unsaved' && editedContent !== textContent) {
+      if (autosaveTimerRef.current) clearTimeout(autosaveTimerRef.current);
+      saveContent(editedContent, true);
+    }
+  };
+
+  const insertMarkdown = (prefix: string, suffix: string = '') => {
+    const textarea = textareaRef.current;
+    if (!textarea) return;
+    const start = textarea.selectionStart;
+    const end = textarea.selectionEnd;
+    const text = editedContent;
+    const selectedText = text.substring(start, end);
+    const replacement = prefix + selectedText + suffix;
+    const newContent = text.substring(0, start) + replacement + text.substring(end);
+    handleContentChange(newContent);
+    setTimeout(() => {
+      textarea.focus();
+      textarea.setSelectionRange(start + prefix.length, end + prefix.length);
+    }, 0);
+  };
+
+  // Keyboard shortcut Cmd+S / Ctrl+S to save instantly
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 's') {
+        e.preventDefault();
+        if (isTextOrCode && editedContent !== textContent) {
+          if (autosaveTimerRef.current) clearTimeout(autosaveTimerRef.current);
+          saveContent(editedContent, false);
+        }
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [editedContent, textContent, isTextOrCode]);
+
+  // Copy Image to Clipboard
+  const handleCopyImageClick = async () => {
+    if (isCopyingImage) return;
+    setIsCopyingImage(true);
+    try {
+      const res = await copyImageToClipboard(getMediaUrl());
+      setIsImageCopied(true);
+      hapticSuccess();
+      if (onAddToast) {
+        if (res.type === 'blob') {
+          onAddToast("Image copied to clipboard!");
+        } else {
+          onAddToast("Image link copied to clipboard");
+        }
+      }
+      setTimeout(() => setIsImageCopied(false), 2200);
+    } catch (err: any) {
+      console.warn("Failed to copy image:", err);
+      if (onAddToast) {
+        onAddToast("Unable to copy image to clipboard: " + (err.message || 'Permission denied'), 'error');
+      }
+    } finally {
+      setIsCopyingImage(false);
+    }
+  };
+
+  // Safe Close handler that saves any unsaved note changes
+  const handleModalClose = () => {
+    if (saveStatus === 'unsaved' && editedContent !== textContent) {
+      saveContent(editedContent, true);
+    }
+    onClose();
   };
 
   // DOCX Rendering Effect
@@ -538,78 +657,116 @@ export const FilePreview: React.FC<FilePreviewProps> = ({
       );
     }
 
-    // 4. Markdown & Plain Text / Code
+    // 4. Markdown & Plain Text / Code (Live Editable with Autosave)
     if (isTextOrCode) {
       if (isLoadingText) {
         return (
-          <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '200px', color: 'var(--text-muted)' }}>
-            <Loader2 size={20} className="spin-icon" style={{ marginRight: '8px' }} />
-            Loading text preview...
+          <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '260px', color: 'var(--text-muted)' }}>
+            <Loader2 size={22} className="spin-icon" style={{ marginRight: '10px' }} />
+            <span>Decrypting & loading note...</span>
           </div>
         );
       }
 
       return (
         <div className="preview-text-container">
-          <div className="preview-toolbar" style={{ padding: '8px 12px', borderBottom: '1px solid var(--border-color)', margin: 0, justifyContent: 'space-between' }}>
-            {isMarkdown ? (
-              <div className="preview-view-toggle">
-                <button 
-                  type="button"
-                  className={`preview-toggle-btn ${mdViewMode === 'rendered' ? 'active' : ''}`}
-                  onClick={() => {
-                    hapticLight();
-                    setMdViewMode('rendered');
-                  }}
-                  title="Formatted Markdown"
-                >
-                  <Eye size={13} />
-                  <span>Preview</span>
-                </button>
-                <button 
-                  type="button"
-                  className={`preview-toggle-btn ${mdViewMode === 'raw' ? 'active' : ''}`}
-                  onClick={() => {
-                    hapticLight();
-                    setMdViewMode('raw');
-                  }}
-                  title="Raw Markdown Source"
-                >
-                  <Code size={13} />
-                  <span>Source</span>
-                </button>
-                <button 
-                  type="button"
-                  className={`preview-toggle-btn ${mdViewMode === 'edit' ? 'active' : ''}`}
-                  onClick={() => {
-                    hapticLight();
-                    setEditedContent(textContent || '');
-                    setMdViewMode('edit');
-                  }}
-                  title="Edit Markdown Note"
-                >
-                  <FileEdit size={13} />
-                  <span>Edit</span>
-                </button>
-              </div>
-            ) : (
-              <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>
-                {doc.name.split('.').pop()?.toUpperCase() || 'TEXT'} Source
-              </span>
-            )}
+          {/* Editor Header Bar */}
+          <div className="preview-toolbar preview-editor-toolbar">
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+              {isMarkdown ? (
+                <div className="preview-view-toggle">
+                  <button 
+                    type="button"
+                    className={`preview-toggle-btn ${mdViewMode === 'split' ? 'active' : ''} desktop-only`}
+                    onClick={() => {
+                      hapticLight();
+                      setMdViewMode('split');
+                    }}
+                    title="Side-by-side Editor & Live Preview"
+                  >
+                    <Columns size={13} />
+                    <span>Split View</span>
+                  </button>
+                  <button 
+                    type="button"
+                    className={`preview-toggle-btn ${mdViewMode === 'edit' ? 'active' : ''}`}
+                    onClick={() => {
+                      hapticLight();
+                      setMdViewMode('edit');
+                    }}
+                    title="Edit Markdown Note"
+                  >
+                    <FileEdit size={13} />
+                    <span>Edit</span>
+                  </button>
+                  <button 
+                    type="button"
+                    className={`preview-toggle-btn ${mdViewMode === 'rendered' ? 'active' : ''}`}
+                    onClick={() => {
+                      hapticLight();
+                      setMdViewMode('rendered');
+                    }}
+                    title="Rendered Markdown Preview"
+                  >
+                    <Eye size={13} />
+                    <span>Preview</span>
+                  </button>
+                </div>
+              ) : (
+                <span className="docx-badge" style={{ background: 'rgba(168, 85, 247, 0.15)', color: '#a855f7' }}>
+                  {doc.name.split('.').pop()?.toUpperCase() || 'TEXT'} (Editable)
+                </span>
+              )}
 
-            <div style={{ display: 'flex', gap: '8px' }}>
+              {/* Autosave Status Pill */}
+              <div className={`autosave-status-pill status-${saveStatus}`} title={lastSavedTime ? `Last saved at ${lastSavedTime}` : undefined}>
+                {saveStatus === 'saving' ? (
+                  <>
+                    <Loader2 size={12} className="spin-icon" />
+                    <span>Saving...</span>
+                  </>
+                ) : saveStatus === 'unsaved' ? (
+                  <>
+                    <span className="unsaved-dot" />
+                    <span>Unsaved changes</span>
+                  </>
+                ) : saveStatus === 'error' ? (
+                  <>
+                    <AlertTriangle size={12} color="var(--danger)" />
+                    <span>Save error</span>
+                  </>
+                ) : (
+                  <>
+                    <CheckCircle2 size={12} color="var(--success)" />
+                    <span>{lastSavedTime ? `Saved ${lastSavedTime}` : 'All changes saved'}</span>
+                  </>
+                )}
+              </div>
+            </div>
+
+            <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
+              <button 
+                type="button" 
+                className="btn btn-primary btn-sm"
+                onClick={() => saveContent(editedContent, false)}
+                disabled={isSavingContent || saveStatus === 'saved'}
+                style={{ padding: '4px 10px', fontSize: '12px', gap: '5px' }}
+                title="Save changes immediately (Cmd+S)"
+              >
+                {isSavingContent ? <Loader2 size={13} className="spin-icon" /> : <Save size={13} />}
+                <span>Save</span>
+              </button>
               <button 
                 type="button" 
                 className="preview-toolbar-btn"
                 onClick={() => {
-                  if (textContent) {
-                    navigator.clipboard.writeText(textContent);
+                  if (editedContent) {
+                    navigator.clipboard.writeText(editedContent);
                     setIsTextCopied(true);
                     setTimeout(() => setIsTextCopied(false), 2000);
                   }
                 }}
-                title="Copy content"
+                title="Copy note content"
               >
                 {isTextCopied ? <Check size={14} style={{ color: 'var(--success)' }} /> : <Copy size={14} />}
                 <span>{isTextCopied ? 'Copied' : 'Copy'}</span>
@@ -617,18 +774,9 @@ export const FilePreview: React.FC<FilePreviewProps> = ({
               <button 
                 type="button" 
                 className="preview-toolbar-btn" 
-                onClick={() => window.open(getMediaUrl(), '_blank')}
-                title="Open in new tab"
-              >
-                <ExternalLink size={14} />
-                <span>Open in Tab</span>
-              </button>
-              <button 
-                type="button" 
-                className="preview-toolbar-btn" 
                 onClick={handleDownloadClick}
                 disabled={isDownloading}
-                title="Download text file"
+                title="Download file"
               >
                 {isDownloading ? <Loader2 size={14} className="spin-icon" /> : <Download size={14} />}
                 <span>{isDownloading ? 'Downloading...' : 'Download'}</span>
@@ -636,49 +784,78 @@ export const FilePreview: React.FC<FilePreviewProps> = ({
             </div>
           </div>
 
-          {isMarkdown && mdViewMode === 'rendered' ? (
-            <div 
-              className="markdown-rendered-view"
-              dangerouslySetInnerHTML={{ 
-                __html: marked.parse(textContent || '', { gfm: true, breaks: true }) as string 
-              }}
-            />
-          ) : isMarkdown && mdViewMode === 'edit' ? (
-            <div style={{ flex: 1, display: 'flex', flexDirection: 'column', padding: '16px', background: 'var(--bg-primary)', overflow: 'hidden' }}>
-              <textarea
-                className="form-textarea note-textarea"
-                style={{ flex: 1, minHeight: '340px', width: '100%', fontFamily: 'var(--font-mono)', fontSize: '13px', lineHeight: '1.6' }}
-                value={editedContent}
-                onChange={(e) => setEditedContent(e.target.value)}
-                disabled={isSavingContent}
-                placeholder="Write your markdown note here..."
-              />
-              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', marginTop: '12px' }}>
-                <button 
-                  type="button" 
-                  className="btn btn-secondary" 
-                  onClick={() => setMdViewMode('rendered')}
-                  disabled={isSavingContent}
-                >
-                  Cancel
-                </button>
-                <button 
-                  type="button" 
-                  className="btn btn-primary" 
-                  onClick={handleSaveContent}
-                  disabled={isSavingContent}
-                  style={{ gap: '6px' }}
-                >
-                  {isSavingContent ? <Loader2 size={14} className="spin-icon" /> : <Save size={14} />}
-                  Save Note
-                </button>
-              </div>
-            </div>
-          ) : (
-            <div className="markdown-raw-view">
-              {textContent || 'Empty document'}
+          {/* Quick Markdown Formatting Toolbar (Shown in edit or split mode) */}
+          {isMarkdown && (mdViewMode === 'edit' || mdViewMode === 'split') && (
+            <div className="editor-quick-toolbar">
+              <button type="button" className="toolbar-icon-btn" onClick={() => insertMarkdown('**', '**')} title="Bold (**text**)">
+                <Bold size={13} />
+              </button>
+              <button type="button" className="toolbar-icon-btn" onClick={() => insertMarkdown('*', '*')} title="Italic (*text*)">
+                <Italic size={13} />
+              </button>
+              <button type="button" className="toolbar-icon-btn" onClick={() => insertMarkdown('### ')} title="Heading (### Title)">
+                <Heading size={13} />
+              </button>
+              <div className="toolbar-sep" />
+              <button type="button" className="toolbar-icon-btn" onClick={() => insertMarkdown('- ')} title="Bullet List (- item)">
+                <List size={13} />
+              </button>
+              <button type="button" className="toolbar-icon-btn" onClick={() => insertMarkdown('- [ ] ')} title="Task Checkbox (- [ ] todo)">
+                <CheckSquare size={13} />
+              </button>
+              <button type="button" className="toolbar-icon-btn" onClick={() => insertMarkdown('```\n', '\n```')} title="Code Block (```)">
+                <Code size={13} />
+              </button>
+              <button type="button" className="toolbar-icon-btn" onClick={() => insertMarkdown('> ')} title="Blockquote (> quote)">
+                <Quote size={13} />
+              </button>
             </div>
           )}
+
+          {/* Editor Content Area */}
+          <div className="editor-content-area">
+            {isMarkdown && mdViewMode === 'rendered' ? (
+              <div 
+                className="markdown-rendered-view"
+                dangerouslySetInnerHTML={{ 
+                  __html: marked.parse(editedContent || '', { gfm: true, breaks: true }) as string 
+                }}
+              />
+            ) : isMarkdown && mdViewMode === 'split' ? (
+              <div className="markdown-split-container">
+                <div className="markdown-split-pane pane-editor">
+                  <textarea
+                    ref={textareaRef}
+                    className="live-editor-textarea"
+                    value={editedContent}
+                    onChange={(e) => handleContentChange(e.target.value)}
+                    onBlur={handleTextareaBlur}
+                    placeholder="Type markdown note here (autosaves live)..."
+                    spellCheck="false"
+                  />
+                </div>
+                <div className="markdown-split-divider" />
+                <div className="markdown-split-pane pane-preview">
+                  <div 
+                    className="markdown-rendered-view"
+                    dangerouslySetInnerHTML={{ 
+                      __html: marked.parse(editedContent || '', { gfm: true, breaks: true }) as string 
+                    }}
+                  />
+                </div>
+              </div>
+            ) : (
+              <textarea
+                ref={textareaRef}
+                className="live-editor-textarea full-pane-textarea"
+                value={editedContent}
+                onChange={(e) => handleContentChange(e.target.value)}
+                onBlur={handleTextareaBlur}
+                placeholder={isMarkdown ? "Type markdown note here (autosaves live)..." : "Edit text file content here (autosaves live)..."}
+                spellCheck="false"
+              />
+            )}
+          </div>
         </div>
       );
     }
@@ -687,11 +864,59 @@ export const FilePreview: React.FC<FilePreviewProps> = ({
     switch (doc.type) {
       case 'image':
         return (
-          <img 
-            className="preview-media" 
-            src={getMediaUrl()} 
-            alt={doc.name} 
-          />
+          <div className="preview-image-container">
+            <div className="preview-image-toolbar">
+              <div className="preview-image-meta-pill">
+                <span>{doc.name.split('.').pop()?.toUpperCase() || 'IMAGE'}</span>
+                <span>•</span>
+                <span>{formatBytes(doc.size)}</span>
+              </div>
+              <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                <button
+                  type="button"
+                  className="preview-toolbar-btn copy-image-btn"
+                  onClick={handleCopyImageClick}
+                  disabled={isCopyingImage}
+                  title="Copy Image to Clipboard"
+                >
+                  {isCopyingImage ? (
+                    <Loader2 size={14} className="spin-icon" />
+                  ) : isImageCopied ? (
+                    <Check size={14} style={{ color: 'var(--success)' }} />
+                  ) : (
+                    <Copy size={14} />
+                  )}
+                  <span>{isImageCopied ? 'Image Copied!' : 'Copy to Clipboard'}</span>
+                </button>
+                <button 
+                  type="button" 
+                  className="preview-toolbar-btn" 
+                  onClick={() => window.open(getMediaUrl(), '_blank')}
+                  title="Open image in new tab"
+                >
+                  <ExternalLink size={14} />
+                  <span>Open in Tab</span>
+                </button>
+                <button 
+                  type="button" 
+                  className="preview-toolbar-btn" 
+                  onClick={handleDownloadClick}
+                  disabled={isDownloading}
+                  title="Download Image"
+                >
+                  {isDownloading ? <Loader2 size={14} className="spin-icon" /> : <Download size={14} />}
+                  <span>{isDownloading ? 'Downloading...' : 'Download'}</span>
+                </button>
+              </div>
+            </div>
+            <div className="preview-image-wrapper">
+              <img 
+                className="preview-media preview-media-image" 
+                src={getMediaUrl()} 
+                alt={doc.name} 
+              />
+            </div>
+          </div>
         );
       case 'video':
         return (
@@ -919,9 +1144,9 @@ export const FilePreview: React.FC<FilePreviewProps> = ({
   };
 
   return (
-    <div className="modal-overlay" onClick={onClose}>
+    <div className="modal-overlay" onClick={handleModalClose}>
       <div 
-        className={`modal-content preview-modal-content ${doc.type === 'link' ? 'preview-modal-link' : ''} ${isDocx || isSpreadsheet ? 'preview-modal-expanded' : ''}`} 
+        className={`modal-content preview-modal-content ${doc.type === 'link' ? 'preview-modal-link' : ''} ${isDocx || isSpreadsheet || isTextOrCode ? 'preview-modal-expanded' : ''}`} 
         onClick={(e) => e.stopPropagation()}
       >
         <div className="modal-header">
@@ -940,7 +1165,7 @@ export const FilePreview: React.FC<FilePreviewProps> = ({
                   className={`preview-crumb-btn ${folderPath.length === 0 ? 'current' : ''}`}
                   onClick={() => {
                     hapticLight();
-                    onClose();
+                    handleModalClose();
                     if (onNavigateFolder) onNavigateFolder(null);
                   }}
                   title="Main Vault Root"
@@ -957,7 +1182,7 @@ export const FilePreview: React.FC<FilePreviewProps> = ({
                         className={`preview-crumb-btn ${isCurrent ? 'current' : ''}`}
                         onClick={() => {
                           hapticLight();
-                          onClose();
+                          handleModalClose();
                           if (onNavigateFolder) onNavigateFolder(crumb.id);
                         }}
                         title={`Folder: ${crumb.name}`}
@@ -986,7 +1211,7 @@ export const FilePreview: React.FC<FilePreviewProps> = ({
                 {isDownloading ? <Loader2 size={18} className="spin-icon" /> : <Download size={18} />}
               </button>
             )}
-            <button className="modal-close" onClick={onClose}>
+            <button className="modal-close" onClick={handleModalClose} title="Close Preview">
               <X size={24} />
             </button>
           </div>

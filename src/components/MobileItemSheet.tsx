@@ -13,7 +13,8 @@ import {
   Video as VideoIcon, 
   Link as LinkIcon, 
   File, 
-  X 
+  X,
+  Copy
 } from 'lucide-react';
 import { API_BASE_URL } from '../config';
 import { hapticLight, hapticWarning, hapticSuccess } from '../utils/haptics';
@@ -31,6 +32,7 @@ interface MobileItemSheetProps {
   onDelete: (id: string, isFolder: boolean) => void;
   onShare?: (doc: any) => void;
   onNavigateFolder?: (folderId: string | null) => void;
+  onCopyImage?: (item: any) => void;
 }
 
 export const MobileItemSheet: React.FC<MobileItemSheetProps> = ({
@@ -45,6 +47,7 @@ export const MobileItemSheet: React.FC<MobileItemSheetProps> = ({
   onDelete,
   onShare,
   onNavigateFolder,
+  onCopyImage,
 }) => {
   const [folderPath, setFolderPath] = useState<{ id: string; name: string }[]>([]);
 
@@ -148,6 +151,23 @@ export const MobileItemSheet: React.FC<MobileItemSheetProps> = ({
             </div>
             <span>{isFolder ? 'Open Folder' : (item.type === 'link' ? 'Open Link' : 'Preview Document')}</span>
           </button>
+
+          {/* Action: Copy Image to Clipboard */}
+          {!isFolder && item.type === 'image' && onCopyImage && (
+            <button 
+              className="mobile-item-action-row"
+              onClick={() => {
+                hapticLight();
+                onClose();
+                onCopyImage(item);
+              }}
+            >
+              <div className="mobile-item-action-icon">
+                <Copy size={18} />
+              </div>
+              <span>Copy Image to Clipboard</span>
+            </button>
+          )}
 
           {/* Action: Download (Non-folder, non-link) */}
           {!isFolder && item.type !== 'link' && onDownload && (

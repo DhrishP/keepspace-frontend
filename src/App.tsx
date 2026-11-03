@@ -21,6 +21,7 @@ import { usePWA } from './hooks/usePWA';
 import { API_BASE_URL } from './config';
 import { saveLocalVault, getLocalVault, saveLocalStats, getLocalStats } from './utils/localDb';
 import { compressImageIfNeeded } from './utils/imageCompressor';
+import { copyImageToClipboard } from './utils/clipboard';
 
 export default function App() {
   const { isOnline, canInstall, triggerInstall } = usePWA();
@@ -70,158 +71,11 @@ export default function App() {
   // Tab and Folder navigation state
   const [currentTab, setCurrentTab] = useState<string>('all'); // all, favorites, pdf, image, video, link
   const [currentFolderId, setCurrentFolderId] = useState<string | null>(null);
-  
-  // Navigation helpers with History pushState for PWA swipe-back support
-  const handleNavigateFolder = (folderId: string | null) => {
-    if (document.activeElement instanceof HTMLElement) {
-      document.activeElement.blur();
-    }
-    searchInputRef.current?.blur();
-    setMobileSearchOpen(false);
-    const targetHash = folderId ? `#folder=${folderId}` : '#';
-    if (window.location.hash !== targetHash) {
-      window.history.pushState({ folderId, tab: 'all' }, '', targetHash || window.location.pathname);
-    }
-    setFolders([]);
-    setDocuments([]);
-    setIsLoading(true);
-    setCurrentFolderId(folderId);
-    setCurrentTab('all');
-  };
 
-  const handleSelectTab = (tab: string) => {
-    if (document.activeElement instanceof HTMLElement) {
-      document.activeElement.blur();
-    }
-    searchInputRef.current?.blur();
-    setMobileSearchOpen(false);
-    const targetHash = tab !== 'all' ? `#tab=${tab}` : '#';
-    if (window.location.hash !== targetHash) {
-      window.history.pushState({ folderId: null, tab }, '', targetHash || window.location.pathname);
-    }
-    setFolders([]);
-    setDocuments([]);
-    setIsLoading(true);
-    setCurrentFolderId(null);
-    setCurrentTab(tab);
-  };
-
-  const handleOpenSearch = () => {
-    setMobileSearchOpen(true);
-    if (!window.location.hash.includes('search')) {
-      window.history.pushState({ modal: 'search' }, '', '#search');
-    }
-  };
-
-  const handleCloseSearch = useCallback(() => {
-    if (document.activeElement instanceof HTMLElement) {
-      document.activeElement.blur();
-    }
-    searchInputRef.current?.blur();
-    setMobileSearchOpen(false);
-    if (window.location.hash.includes('search')) {
-      window.history.back();
-    }
-  }, []);
-
-  const handleOpenPreview = useCallback((doc: any) => {
-    if (document.activeElement instanceof HTMLElement) {
-      document.activeElement.blur();
-    }
-    searchInputRef.current?.blur();
-    setPreviewDoc(doc);
-    window.history.pushState({ modal: 'preview' }, '', '#preview');
-  }, []);
-
-  const handleClosePreview = useCallback(() => {
-    if (document.activeElement instanceof HTMLElement) {
-      document.activeElement.blur();
-    }
-    setPreviewDoc(null);
-    if (window.location.hash.includes('preview')) {
-      window.history.back();
-    }
-  }, []);
-
-  const handleOpenShare = useCallback((doc: any) => {
-    if (document.activeElement instanceof HTMLElement) {
-      document.activeElement.blur();
-    }
-    searchInputRef.current?.blur();
-    setShareDoc(doc);
-    window.history.pushState({ modal: 'share' }, '', '#share');
-  }, []);
-
-  const handleCloseShare = useCallback(() => {
-    if (document.activeElement instanceof HTMLElement) {
-      document.activeElement.blur();
-    }
-    setShareDoc(null);
-    if (window.location.hash.includes('share')) {
-      window.history.back();
-    }
-  }, []);
-
-  // Sync state from URL hash & handle browser Back/Forward / PWA Swipe Back
-  useEffect(() => {
-    const syncFromUrl = () => {
-      const hash = window.location.hash.replace(/^#/, '');
-      const params = new URLSearchParams(hash);
-      const folderParam = params.get('folder');
-      const tabParam = params.get('tab');
-      const isSearch = hash === 'search';
-      const isPreview = hash === 'preview';
-      const isShare = hash === 'share';
-
-      // Close preview if we backed out of preview
-      if (!isPreview) {
-        setPreviewDoc(null);
-      }
-
-      // Close share if we backed out of share
-      if (!isShare) {
-        setShareDoc(null);
-      }
-
-      // If hash is #search, ensure search is visible
-      if (isSearch) {
-        setMobileSearchOpen(true);
-      } else if (!isPreview && !isShare) {
-        // If we backed out of search to dashboard or folder, close search
-        setMobileSearchOpen(false);
-      }
-
-      // Close transient sheets & dialogs on back navigation
-      setActiveUploadTab(null);
-      setMobileActionSheetOpen(false);
-      setMobileItemSheet(null);
-      setConfirmModal(null);
-      setRenameModal(null);
-      setSidebarOpen(false);
-
-      if (folderParam) {
-        setCurrentFolderId(folderParam);
-        setCurrentTab('all');
-      } else if (tabParam) {
-        setCurrentFolderId(null);
-        setCurrentTab(tabParam);
-      } else if (!isSearch && !isPreview && !isShare) {
-        setCurrentFolderId(null);
-        setCurrentTab('all');
-      }
-    };
-
-    // Sync initial load URL hash
-    syncFromUrl();
-
-    window.addEventListener('popstate', syncFromUrl);
-    return () => window.removeEventListener('popstate', syncFromUrl);
-  }, []);
-  
   // Search query
   const [searchQuery, setSearchQuery] = useState<string>('');
   const searchInputRef = useRef<HTMLInputElement>(null);
-  
+
   // Data loading states
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [isRefreshing, setIsRefreshing] = useState<boolean>(false);
@@ -230,7 +84,7 @@ export default function App() {
   const [folders, setFolders] = useState<any[]>([]);
   const [documents, setDocuments] = useState<any[]>([]);
   const [stats, setStats] = useState<any>(null);
-  
+
   // Modal / Preview Overlay States
   const [activeUploadTab, setActiveUploadTab] = useState<'file' | 'folder' | 'link' | 'note' | null>(null);
   const [previewDoc, setPreviewDoc] = useState<any | null>(null);
@@ -273,25 +127,25 @@ export default function App() {
   const [pullDistance, setPullDistance] = useState<number>(0);
   const [isPulling, setIsPulling] = useState<boolean>(false);
   const pullTouchStartRef = useRef<number>(0);
-  
+
   // Sidebar folders state (always shows top-level root folders)
   const [sidebarFolders, setSidebarFolders] = useState<any[]>([]);
-  
+
   // Last uploaded folder id (persisted in localStorage)
   const [lastUploadFolderId, setLastUploadFolderId] = useState<string>(() => {
     return localStorage.getItem('keepspace_last_upload_folder') || '';
   });
-  
+
   // Custom Card display size state (sm, md, lg)
   const [cardSize, setCardSize] = useState<'sm' | 'md' | 'lg'>(() => {
     return (localStorage.getItem('keepspace_card_size') as 'sm' | 'md' | 'lg') || 'md';
   });
-  
+
   const handleSetCardSize = (size: 'sm' | 'md' | 'lg') => {
     setCardSize(size);
     localStorage.setItem('keepspace_card_size', size);
   };
-  
+
   // Toast notifications state
   const [toasts, setToasts] = useState<ToastMessage[]>([]);
 
@@ -304,17 +158,257 @@ export default function App() {
   };
 
   // Helper to add toast notification
-  const addToast = (text: string, type: 'success' | 'error' = 'success') => {
+  const addToast = useCallback((text: string, type: 'success' | 'error' = 'success') => {
     const id = crypto.randomUUID();
     setToasts((prev) => [...prev, { id, text, type }]);
     setTimeout(() => {
       removeToast(id);
     }, 4000);
-  };
+  }, []);
 
-  const removeToast = (id: string) => {
+  const removeToast = useCallback((id: string) => {
     setToasts((prev) => prev.filter((t) => t.id !== id));
-  };
+  }, []);
+
+  // Refs for tracking in syncFromUrl without stale closures
+  const previewDocRef = useRef<any | null>(null);
+  useEffect(() => {
+    previewDocRef.current = previewDoc;
+  }, [previewDoc]);
+
+  const documentsRef = useRef<any[]>([]);
+  useEffect(() => {
+    documentsRef.current = documents;
+  }, [documents]);
+
+  // Deep linking: Open preview & synchronize URL query param (?file=UUID)
+  const handleOpenPreview = useCallback((doc: any) => {
+    if (document.activeElement instanceof HTMLElement) {
+      document.activeElement.blur();
+    }
+    searchInputRef.current?.blur();
+    setPreviewDoc(doc);
+    previewDocRef.current = doc;
+
+    const currentUrl = new URL(window.location.href);
+    currentUrl.searchParams.set('file', doc.id);
+    window.history.pushState({ modal: 'preview', fileId: doc.id }, '', currentUrl.pathname + currentUrl.search + window.location.hash);
+  }, []);
+
+  // Close preview & remove ?file=UUID from URL
+  const handleClosePreview = useCallback(() => {
+    if (document.activeElement instanceof HTMLElement) {
+      document.activeElement.blur();
+    }
+    setPreviewDoc(null);
+    previewDocRef.current = null;
+
+    const currentUrl = new URL(window.location.href);
+    if (currentUrl.searchParams.has('file') || window.location.hash.includes('preview')) {
+      currentUrl.searchParams.delete('file');
+      if (window.history.state?.modal === 'preview') {
+        window.history.back();
+      } else {
+        const cleanHash = window.location.hash.replace(/#?preview(&|\?)?/, '');
+        window.history.replaceState({}, '', currentUrl.pathname + (currentUrl.search ? currentUrl.search : '') + (cleanHash ? '#' + cleanHash : ''));
+      }
+    }
+  }, []);
+
+  const handleOpenShare = useCallback((doc: any) => {
+    if (document.activeElement instanceof HTMLElement) {
+      document.activeElement.blur();
+    }
+    searchInputRef.current?.blur();
+    setShareDoc(doc);
+    window.history.pushState({ modal: 'share' }, '', '#share');
+  }, []);
+
+  const handleCloseShare = useCallback(() => {
+    if (document.activeElement instanceof HTMLElement) {
+      document.activeElement.blur();
+    }
+    setShareDoc(null);
+    if (window.location.hash.includes('share')) {
+      window.history.back();
+    }
+  }, []);
+
+  const handleOpenSearch = useCallback(() => {
+    setMobileSearchOpen(true);
+    if (!window.location.hash.includes('search')) {
+      window.history.pushState({ modal: 'search' }, '', '#search');
+    }
+  }, []);
+
+  const handleCloseSearch = useCallback(() => {
+    if (document.activeElement instanceof HTMLElement) {
+      document.activeElement.blur();
+    }
+    searchInputRef.current?.blur();
+    setMobileSearchOpen(false);
+    if (window.location.hash.includes('search')) {
+      window.history.back();
+    }
+  }, []);
+
+  // Navigation helpers with History pushState for PWA swipe-back support
+  const handleNavigateFolder = useCallback((folderId: string | null) => {
+    if (document.activeElement instanceof HTMLElement) {
+      document.activeElement.blur();
+    }
+    searchInputRef.current?.blur();
+    setMobileSearchOpen(false);
+    const targetHash = folderId ? `#folder=${folderId}` : '#';
+    const currentUrl = new URL(window.location.href);
+    currentUrl.searchParams.delete('file');
+    currentUrl.hash = targetHash;
+    if (window.location.hash !== targetHash) {
+      window.history.pushState({ folderId, tab: 'all' }, '', currentUrl.pathname + (currentUrl.search ? currentUrl.search : '') + (targetHash || ''));
+    }
+    setFolders([]);
+    setDocuments([]);
+    setIsLoading(true);
+    setCurrentFolderId(folderId);
+    setCurrentTab('all');
+  }, []);
+
+  const handleSelectTab = useCallback((tab: string) => {
+    if (document.activeElement instanceof HTMLElement) {
+      document.activeElement.blur();
+    }
+    searchInputRef.current?.blur();
+    setMobileSearchOpen(false);
+    const targetHash = tab !== 'all' ? `#tab=${tab}` : '#';
+    const currentUrl = new URL(window.location.href);
+    currentUrl.searchParams.delete('file');
+    currentUrl.hash = targetHash;
+    if (window.location.hash !== targetHash) {
+      window.history.pushState({ folderId: null, tab }, '', currentUrl.pathname + (currentUrl.search ? currentUrl.search : '') + (targetHash || ''));
+    }
+    setFolders([]);
+    setDocuments([]);
+    setIsLoading(true);
+    setCurrentFolderId(null);
+    setCurrentTab(tab);
+  }, []);
+
+  // Copy Image to clipboard handler
+  const handleCopyImage = useCallback(async (item: any) => {
+    try {
+      const downloadUrl = `${API_BASE_URL}/api/documents/${item.id}/download`;
+      const res = await copyImageToClipboard(downloadUrl);
+      if (res.type === 'blob') {
+        addToast("Image copied to clipboard!");
+      } else {
+        addToast("Image link copied to clipboard");
+      }
+    } catch (e: any) {
+      console.warn("Image copy error:", e);
+      addToast("Failed to copy image to clipboard", "error");
+    }
+  }, [addToast]);
+
+  // Handle note / text file content saved without page reload
+  const handleContentSaved = useCallback((id: string, newContent: string) => {
+    const newSize = new Blob([newContent]).size;
+    const nowIso = new Date().toISOString();
+    setDocuments((prev) =>
+      prev.map((d) => (d.id === id ? { ...d, size: newSize, updated_at: nowIso } : d))
+    );
+    setPreviewDoc((prev: any) => {
+      if (prev && prev.id === id) {
+        return { ...prev, size: newSize, updated_at: nowIso };
+      }
+      return prev;
+    });
+  }, []);
+
+  // Sync state from URL (search params + hash) & handle browser Back/Forward / PWA Swipe Back
+  useEffect(() => {
+    if (!isAuthenticated) return;
+
+    const syncFromUrl = async () => {
+      const searchParams = new URLSearchParams(window.location.search);
+      const hash = window.location.hash.replace(/^#/, '');
+      const hashParams = new URLSearchParams(hash);
+
+      const fileParam = searchParams.get('file') || hashParams.get('file');
+      const folderParam = hashParams.get('folder') || searchParams.get('folder');
+      const tabParam = hashParams.get('tab') || searchParams.get('tab');
+      const isSearch = hash === 'search';
+      const isShare = hash === 'share';
+
+      // Deep linking / URL sync for file preview
+      if (fileParam) {
+        if (previewDocRef.current?.id !== fileParam) {
+          const cachedDoc = documentsRef.current.find((d: any) => d.id === fileParam);
+          if (cachedDoc) {
+            setPreviewDoc(cachedDoc);
+            previewDocRef.current = cachedDoc;
+          } else {
+            try {
+              const res = await fetch(`${API_BASE_URL}/api/documents/${fileParam}`);
+              if (res.ok) {
+                const doc = await res.json();
+                setPreviewDoc(doc);
+                previewDocRef.current = doc;
+              } else {
+                addToast("Document not found", "error");
+                const cleanUrl = new URL(window.location.href);
+                cleanUrl.searchParams.delete('file');
+                window.history.replaceState({}, '', cleanUrl.pathname + (cleanUrl.search ? cleanUrl.search : '') + window.location.hash);
+              }
+            } catch (e) {
+              console.error("Failed to deep-link document:", e);
+            }
+          }
+        }
+      } else {
+        if (previewDocRef.current) {
+          setPreviewDoc(null);
+          previewDocRef.current = null;
+        }
+      }
+
+      // Close share if backed out
+      if (!isShare) {
+        setShareDoc(null);
+      }
+
+      // If hash is #search, ensure search is visible
+      if (isSearch) {
+        setMobileSearchOpen(true);
+      } else if (!fileParam && !isShare) {
+        setMobileSearchOpen(false);
+      }
+
+      // Close transient sheets & dialogs on back navigation
+      setActiveUploadTab(null);
+      setMobileActionSheetOpen(false);
+      setMobileItemSheet(null);
+      setConfirmModal(null);
+      setRenameModal(null);
+      setSidebarOpen(false);
+
+      if (folderParam) {
+        setCurrentFolderId(folderParam);
+        setCurrentTab('all');
+      } else if (tabParam) {
+        setCurrentFolderId(null);
+        setCurrentTab(tabParam);
+      } else if (!isSearch && !fileParam && !isShare) {
+        setCurrentFolderId(null);
+        setCurrentTab('all');
+      }
+    };
+
+    // Initial load sync
+    syncFromUrl();
+
+    window.addEventListener('popstate', syncFromUrl);
+    return () => window.removeEventListener('popstate', syncFromUrl);
+  }, [isAuthenticated, addToast]);
 
   // Fetch Stats
   const fetchStats = async () => {
@@ -1290,6 +1384,7 @@ export default function App() {
           onMoveItem={handleMoveItem}
           onShare={handleOpenShare}
           onOpenItemSheet={handleOpenItemSheet}
+          onCopyImage={handleCopyImage}
         />
       </main>
 
@@ -1326,6 +1421,7 @@ export default function App() {
           hapticSuccess();
           setIncomingShare({ files, link: null });
         }}
+        onAddToast={addToast}
         currentFolderId={currentFolderId}
         currentFolderName={folderName}
       />
@@ -1352,6 +1448,7 @@ export default function App() {
           onDelete={handleDelete}
           onShare={handleOpenShare}
           onNavigateFolder={handleNavigateFolder}
+          onCopyImage={handleCopyImage}
         />
       )}
 
@@ -1398,6 +1495,8 @@ export default function App() {
           onClose={handleClosePreview}
           onUpdateDescription={handleUpdateDescription}
           onNavigateFolder={handleNavigateFolder}
+          onAddToast={addToast}
+          onContentSaved={handleContentSaved}
         />
       )}
 

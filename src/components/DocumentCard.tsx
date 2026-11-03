@@ -16,10 +16,12 @@ import {
   Share2, 
   Edit3, 
   Loader2, 
-  MoreVertical 
+  MoreVertical,
+  Copy
 } from 'lucide-react';
 import { hapticSelection, hapticSuccess } from '../utils/haptics';
 import { renderFileIcon, getFileIconClass, getFileCategory } from '../utils/fileType';
+import { FolderHoverCard } from './FolderHoverCard';
 
 interface DocumentCardProps {
   item: any; // document or folder
@@ -33,6 +35,7 @@ interface DocumentCardProps {
   onShare?: (doc: any) => void;
   onOpenItemSheet?: (item: any, isFolder: boolean) => void;
   onUploadFiles?: (files: FileList | File[], parentId?: string | null) => Promise<void>;
+  onCopyImage?: (item: any) => void;
 }
 
 export const DocumentCard: React.FC<DocumentCardProps> = ({
@@ -47,13 +50,37 @@ export const DocumentCard: React.FC<DocumentCardProps> = ({
   onShare,
   onOpenItemSheet,
   onUploadFiles,
+  onCopyImage,
 }) => {
   const [isDragOver, setIsDragOver] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
   const [isDropSuccess, setIsDropSuccess] = useState(false);
   const [isDownloading, setIsDownloading] = useState(false);
+  const [isFolderHovered, setIsFolderHovered] = useState(false);
+  const hoverTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const leaveTimerRef = useRef<NodeJS.Timeout | null>(null);
   const touchTimerRef = useRef<NodeJS.Timeout | null>(null);
   const touchStartPosRef = useRef<{ x: number; y: number } | null>(null);
+
+  const handleMouseEnterFolder = () => {
+    if (leaveTimerRef.current) {
+      clearTimeout(leaveTimerRef.current);
+      leaveTimerRef.current = null;
+    }
+    hoverTimerRef.current = setTimeout(() => {
+      setIsFolderHovered(true);
+    }, 180);
+  };
+
+  const handleMouseLeaveFolder = () => {
+    if (hoverTimerRef.current) {
+      clearTimeout(hoverTimerRef.current);
+      hoverTimerRef.current = null;
+    }
+    leaveTimerRef.current = setTimeout(() => {
+      setIsFolderHovered(false);
+    }, 220);
+  };
 
   const handleTouchStart = (e: React.TouchEvent) => {
     if (!onOpenItemSheet) return;
@@ -203,11 +230,22 @@ export const DocumentCard: React.FC<DocumentCardProps> = ({
         onDragEnter={handleDragEnter}
         onDragLeave={handleDragLeave}
         onDrop={handleDrop}
+        onMouseEnter={handleMouseEnterFolder}
+        onMouseLeave={handleMouseLeaveFolder}
         onTouchStart={handleTouchStart}
         onTouchEnd={handleTouchEnd}
         onTouchMove={handleTouchMove}
         onTouchCancel={handleTouchEnd}
       >
+        <FolderHoverCard 
+          folderId={item.id} 
+          folderName={item.name} 
+          isOpen={isFolderHovered} 
+          onNavigate={onNavigate}
+          onMouseEnter={handleMouseEnterFolder}
+          onMouseLeave={handleMouseLeaveFolder}
+          position="bottom"
+        />
         <div className="card-icon-row">
           <div className="card-icon-box icon-folder">
             <Folder size={24} />
@@ -312,6 +350,19 @@ export const DocumentCard: React.FC<DocumentCardProps> = ({
             </button>
           )}
           
+          {item.type === 'image' && onCopyImage && (
+            <button 
+              className="card-action-btn"
+              onClick={(e) => {
+                e.stopPropagation();
+                onCopyImage(item);
+              }}
+              title="Copy Image to Clipboard"
+            >
+              <Copy size={16} />
+            </button>
+          )}
+
           {item.type !== 'link' ? (
             <button 
               className="card-action-btn"
