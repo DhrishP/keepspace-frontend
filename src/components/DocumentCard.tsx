@@ -308,6 +308,24 @@ export const DocumentCard: React.FC<DocumentCardProps> = ({
     return getFileIconClass(item.name, item.mime_type, isFolder ? 'folder' : item.type);
   };
 
+  const isTextOrMd = 
+    item.type !== 'image' && 
+    item.type !== 'video' && 
+    item.type !== 'link' && 
+    item.type !== 'pdf' && 
+    (
+      item.name?.toLowerCase().endsWith('.md') ||
+      item.name?.toLowerCase().endsWith('.markdown') ||
+      item.name?.toLowerCase().endsWith('.txt') ||
+      item.name?.toLowerCase().endsWith('.json') ||
+      item.name?.toLowerCase().endsWith('.csv') ||
+      item.name?.toLowerCase().endsWith('.log') ||
+      item.name?.toLowerCase().endsWith('.yaml') ||
+      item.name?.toLowerCase().endsWith('.yml') ||
+      item.mime_type?.startsWith('text/') ||
+      Boolean(item.extracted_text)
+    );
+
   return (
     <div 
       className={`card-item card-file ${isDragging ? 'is-dragging' : ''}`} 
@@ -449,6 +467,14 @@ export const DocumentCard: React.FC<DocumentCardProps> = ({
         {item.type === 'pdf' && (
           <div className="card-preview">
             <FileText size={32} color="var(--danger)" />
+          </div>
+        )}
+
+        {isTextOrMd && (
+          <div className="card-preview card-preview-text">
+            <div className="card-text-preview">
+              {item.extracted_text ? item.extracted_text.trim() : (item.description ? item.description.trim() : 'Empty note')}
+            </div>
           </div>
         )}
 

@@ -314,11 +314,11 @@ export default function App() {
     const newSize = new Blob([newContent]).size;
     const nowIso = new Date().toISOString();
     setDocuments((prev) =>
-      prev.map((d) => (d.id === id ? { ...d, size: newSize, updated_at: nowIso } : d))
+      prev.map((d) => (d.id === id ? { ...d, size: newSize, updated_at: nowIso, extracted_text: newContent } : d))
     );
     setPreviewDoc((prev: any) => {
       if (prev && prev.id === id) {
-        return { ...prev, size: newSize, updated_at: nowIso };
+        return { ...prev, size: newSize, updated_at: nowIso, extracted_text: newContent };
       }
       return prev;
     });
