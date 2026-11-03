@@ -432,13 +432,47 @@ export default function App() {
     }
   }, [addToast]);
 
-  // Folder hover prefetch handler
-  const handlePrefetchFolder = useCallback((folderId: string) => {
+  const prefetchingFolderIdsRef = useRef<Set<string>>(new Set());
+
+  // Pure background prefetch: loads into inMemoryVaultCache ONLY, without touching active view state
+  const handlePrefetchFolder = useCallback(async (folderId: string) => {
+    if (!folderId) return;
     const cacheKey = `folder_${folderId}`;
-    if (!inMemoryVaultCache.has(cacheKey)) {
-      fetchData(folderId, 'all', { silent: true });
+    if (inMemoryVaultCache.has(cacheKey) || prefetchingFolderIdsRef.current.has(folderId)) {
+      return;
     }
-  }, [fetchData]);
+
+    prefetchingFolderIdsRef.current.add(folderId);
+
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/folders/${folderId}`);
+      if (res.ok) {
+        const data = await res.json();
+        const allSubfolders = data.subfolders || data.folders || [];
+        const allDocs = data.documents || [];
+
+        // ONLY update in-memory and IndexedDB cache - NEVER touch React active view state
+        inMemoryVaultCache.set(cacheKey, {
+          folder: data.folder || null,
+          breadcrumbs: data.breadcrumbs || [],
+          subfolders: allSubfolders,
+          documents: allDocs,
+          timestamp: Date.now()
+        });
+
+        await saveLocalVault(cacheKey, {
+          folder: data.folder || null,
+          breadcrumbs: data.breadcrumbs || [],
+          subfolders: allSubfolders,
+          documents: allDocs
+        });
+      }
+    } catch (e) {
+      // Ignore background prefetch network errors
+    } finally {
+      prefetchingFolderIdsRef.current.delete(folderId);
+    }
+  }, []);
 
   // Navigation helpers with History pushState for PWA swipe-back support
   const handleNavigateFolder = useCallback((folderId: string | null) => {
